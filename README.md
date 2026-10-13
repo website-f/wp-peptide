@@ -82,23 +82,25 @@ cd web && node scripts/optimize-images.mjs "C:/path/to/peptide-pngs"
 
 Images uploaded in the admin go through the same pipeline on the server (`api/src/lib/images.ts`) and are served with year-long immutable caching.
 
-## Deploy to the VPS (shared reverse proxy)
+## Live server (https://kyvomethod.com)
 
-KYVO reserves ports **8600-8609**. It binds only to `127.0.0.1:8600`; the shared Caddy in `/opt/reverse-proxy` terminates TLS.
+| | |
+|---|---|
+| App | `/opt/kyvo` (this repo), compose project `kyvo`, web on `127.0.0.1:8600` only |
+| Edge / TLS | [orxies](https://github.com/website-f/orxies) in `/opt/orxies`: owns 80/443, Let's Encrypt auto-renew. Site file: `/opt/orxies/sites/kyvomethod.com.yml` (copy in `deploy/orxies/`) |
+| Firewall | ufw allows 22, 80, 443 only; fail2ban guards SSH |
+| Orxies admin UI | loopback only: `ssh -L 8090:127.0.0.1:8090 root@<vps>` then http://127.0.0.1:8090 |
+
+**Ship an update** (after pushing to `main`):
 
 ```bash
-# /opt/kyvo
-cp .env.vps.example .env && nano .env
-docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
-
-# /opt/reverse-proxy: add KYVO_DOMAIN + KYVO_UPSTREAM=127.0.0.1:8600, then a single-upstream block:
-#   {$KYVO_DOMAIN} {
-#     reverse_proxy {$KYVO_UPSTREAM}
-#   }
-./deploy-vps.sh
+ssh root@<vps>
+cd /opt/kyvo && ./deploy/deploy-vps.sh     # backup -> git pull -> build -> up -> health check
 ```
 
-Never run `docker compose down -v` on the VPS: the `pgdata` and `uploads` volumes hold orders and product images.
+The script keeps 14 days of database backups in `/opt/kyvo/backups/`. Never run a bare `docker compose up` (it drops `docker-compose.vps.yml`), and never `docker compose down -v`: the `pgdata` and `uploads` volumes hold orders and product images.
+
+**First install on a new server**: install Docker, clone to `/opt/kyvo`, `cp .env.vps.example .env` and fill it, run `./deploy/deploy-vps.sh`, read the one-time admin password from `docker compose -f docker-compose.yml -f docker-compose.vps.yml logs api`, then add an orxies site file pointing the domain at `127.0.0.1:8600`.
 
 ## ToyyibPay
 

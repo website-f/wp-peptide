@@ -1,0 +1,19 @@
+# KYVO Labs storefront + admin + API (docker compose project "kyvo", /opt/kyvo).
+domain: kyvomethod.com
+aliases:
+  - www.kyvomethod.com
+upstreams:
+  - 127.0.0.1:8600
+enabled: true
+tls:
+  auto: true
+http_to_https: true
+websocket: true
+block_common_exploits: true
+rate_limit:
+  enabled: true
+  rps: 50
+  burst: 120
+custom_headers:
+  Strict-Transport-Security: "max-age=31536000"
+  X-Content-Type-Options: "nosniff"

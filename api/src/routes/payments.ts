@@ -50,13 +50,30 @@ export async function paymentRoutes(app: FastifyInstance) {
 
   // Server-to-server callback. The hash proves it came from ToyyibPay; we still
   // re-query the bill so a replayed or tampered callback cannot mark an order paid.
-  app.post('/api/payments/toyyibpay/callback', async (req, reply) => {
-    const body = (req.body ?? {}) as Record<string, string | undefined>
-    if (!validCallbackHash(body)) {
-      req.log.warn({ order: body.order_id }, 'toyyibpay callback with bad hash')
-      return reply.status(400).send('bad hash')
+  app.post('/api/payments/toyyibpay/callback', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req, reply) => {
+    // ToyyibPay posts the callback as multipart/form-data; accept url-encoded too.
+    const body: Record<string, string | undefined> = {}
+    if (req.isMultipart()) {
+      for await (const part of req.parts()) {
+        if (part.type === 'field') body[part.fieldname] = String(part.value)
+        else await part.toBuffer() // drain any unexpected file part
+      }
+    } else Object.assign(body, (req.body ?? {}) as Record<string, string | undefined>)
+
+    const order = body.order_id ? await db.order.findUnique({ where: { number: String(body.order_id).slice(0, 20) } }) : null
+    const signed = validCallbackHash(body)
+    // The signature proves origin, but reconcile() is the real gate: it asks ToyyibPay's API
+    // for the bill's status and amount. So an unsigned callback that names a bill we actually
+    // issued for that order may still trigger that (read-only) re-check; it can never mark an
+    // order paid by itself.
+    const knownBill = Boolean(order && order.billCode && body.billcode && body.billcode === order.billCode)
+    if (!signed) {
+      req.log.warn(
+        { order: body.order_id, contentType: req.headers['content-type']?.split(';')[0], fields: Object.keys(body), knownBill },
+        'toyyibpay callback signature mismatch',
+      )
+      if (!knownBill) return reply.status(400).send('bad hash')
     }
-    const order = body.order_id ? await db.order.findUnique({ where: { number: body.order_id } }) : null
     if (order) {
       try {
         await reconcile(order, 'toyyibpay-callback')
