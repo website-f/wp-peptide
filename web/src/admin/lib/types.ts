@@ -19,6 +19,8 @@ export interface Queue {
   payoutRequestedCents: number
   commissionsOwedCents: number
   unreadMessages: number
+  /** Orders with an extra payment to refund or a bill paid short. */
+  paymentIssues: number
 }
 
 export interface DashboardData {
@@ -526,11 +528,41 @@ export interface StoreSettings {
   }
   membership?: Record<Exclude<Tier, 'MEMBER'>, { monthlyCents: number; yearlyCents: number }>
   paymentMethods: PaymentMethodSetting[]
+  onlinePayment: { channel: 'fpx' | 'card' | 'both'; feesPaidBy: 'store' | 'customer' }
+}
+
+export type PayEnv = 'sandbox' | 'production'
+
+export interface GatewayEnvStatus {
+  configured: boolean
+  /** False when the saved keys can no longer be decrypted (server encryption key changed). */
+  readable?: boolean
+  categoryCode?: string | null
+  /** Last 4 characters of the secret key. The full key is never sent to the browser. */
+  secretHint?: string
+  categoryName?: string | null
+  verifiedAt?: string | null
+  updatedAt?: string
+  updatedBy?: string
+}
+
+export interface GatewayStatus {
+  provider: string
+  mode: PayEnv
+  /** The active mode has usable keys, so shoppers can pay online. */
+  ready: boolean
+  sandbox: GatewayEnvStatus
+  production: GatewayEnvStatus
+  callbackUrl: string
+  returnUrl: string
+  /** Why live payments cannot be switched on from this server (e.g. not on https), or null. */
+  productionBlocker: string | null
+  log: { at: string; by: string; action: string }[]
 }
 
 export interface SettingsResponse {
   settings: StoreSettings
   /** Add-ons this installation may show at all. Set on the server only. */
   licensed: { membership: boolean }
-  gateway: { provider: string; configured: boolean; sandbox: boolean; callbackUrl: string }
+  gateway: GatewayStatus
 }

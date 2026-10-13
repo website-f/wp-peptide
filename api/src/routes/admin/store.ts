@@ -5,7 +5,7 @@ import { db } from '../../lib/db.js'
 import { env } from '../../lib/env.js'
 import { badRequest, csvEscape, parse } from '../../lib/http.js'
 import { getSettings, licensed, saveSettings, type StoreSettings } from '../../lib/settings.js'
-import { toyyibEnabled } from '../../lib/toyyibpay.js'
+import { gatewayStatus } from '../../lib/gateway.js'
 
 const MODES = ['standard', 'wholesale', 'box'] as const
 
@@ -154,6 +154,7 @@ const settingsSchema = z
       VIP: z.object({ monthlyCents: z.number().int().min(0), yearlyCents: z.number().int().min(0) }),
       FOUNDER: z.object({ monthlyCents: z.number().int().min(0), yearlyCents: z.number().int().min(0) }),
     }),
+    onlinePayment: z.object({ channel: z.enum(['fpx', 'card', 'both']), feesPaidBy: z.enum(['store', 'customer']) }),
     paymentMethods: z
       .array(
         z.object({
@@ -228,7 +229,7 @@ export async function adminStoreRoutes(app: FastifyInstance) {
   app.get('/settings', async () => ({
     settings: adminView(await getSettings()),
     licensed: licensed(),
-    gateway: { provider: 'ToyyibPay', configured: toyyibEnabled(), sandbox: env.toyyib.baseUrl.includes('dev.'), callbackUrl: `${env.apiPublicUrl}/api/payments/toyyibpay/callback` },
+    gateway: await gatewayStatus(),
   }))
   app.put('/settings', async (req) => {
     const body = parse(settingsSchema, req.body)

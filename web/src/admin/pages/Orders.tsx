@@ -49,6 +49,7 @@ export default function Orders() {
   const rawKind = params.get('kind') as OrderKind | null
   const kind: OrderKind | 'ALL' = rawKind && kinds.includes(rawKind) ? rawKind : 'ALL'
   const page = Math.max(1, Number(params.get('page')) || 1)
+  const issue = params.get('issue') === 'payment' ? 'payment' : undefined
   const [search, setSearch] = useState(params.get('q') ?? '')
   const q = useDebounced(search.trim(), 300)
 
@@ -68,12 +69,13 @@ export default function Orders() {
   }, [q])
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ['admin', 'orders', { status, kind, q, page }],
+    queryKey: ['admin', 'orders', { status, kind, q, page, issue }],
     queryFn: () =>
       api.get<OrderList>('/api/admin/orders', {
         status: status === 'ALL' ? undefined : status,
         kind: kind === 'ALL' ? undefined : kind,
         q: q || undefined,
+        issue,
         page,
         pageSize: PAGE_SIZE,
       }),
@@ -93,6 +95,14 @@ export default function Orders() {
       />
 
       {HINT[status] && <p className="text-sm text-muted-foreground">{HINT[status]}</p>}
+      {issue && (
+        <p className="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm">
+          Showing orders with a payment issue: an extra payment to refund, or a bill paid short.
+          <button type="button" className="text-gold-ink hover:underline" onClick={() => update({ issue: null })}>
+            Show all orders
+          </button>
+        </p>
+      )}
 
       <Panel flush>
         <div className="flex flex-col gap-2 border-b p-3 sm:flex-row sm:items-center">

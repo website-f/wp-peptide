@@ -18,8 +18,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { ApiError, api, errorMessage } from '@/lib/api'
 import { currencySymbol, date, money, num } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { ConfirmDialog, CopyButton, ErrorState, Field, MoneyInput, Num, NumberInput, PageHeader, Panel, Pill, TextInput } from '../components/kit'
+import { ConfirmDialog, ErrorState, Field, MoneyInput, Num, NumberInput, PageHeader, Panel, Pill, TextInput } from '../components/kit'
 import { BannerEditor, bannerToForm, validateBanner, type BannerForm } from '../components/BannerEditor'
+import { ToyyibPayPanel } from '../components/ToyyibPayPanel'
 import { useAdminProducts, useAdminSettings } from '../lib/queries'
 import type { CountBy, PaymentMethodSetting, SettingsResponse, StoreSettings, Tier } from '../lib/types'
 import { TIER_LABEL, centsToInput, toCents } from '../lib/utils'
@@ -77,6 +78,7 @@ interface Form {
   features: { membership: boolean } | null
   membership: Record<PaidTier, { monthly: string; yearly: string }> | null
   paymentMethods: PaymentMethodSetting[]
+  onlinePayment: StoreSettings['onlinePayment']
 }
 
 type Payload = Partial<Omit<StoreSettings, 'currency'>>
@@ -147,6 +149,7 @@ function toForm(s: StoreSettings): Form {
         ) as Record<PaidTier, { monthly: string; yearly: string }>)
       : null,
     paymentMethods: s.paymentMethods.map((m) => ({ ...m })),
+    onlinePayment: { channel: s.onlinePayment?.channel ?? 'both', feesPaidBy: s.onlinePayment?.feesPaidBy ?? 'store' },
   }
 }
 
@@ -278,6 +281,7 @@ function validate(f: Form): { payload: Payload | null; errors: Errors } {
       label: text(`paymentMethods.${i}.label`, m.label, 60, true),
       instructions: text(`paymentMethods.${i}.instructions`, m.instructions, 1500),
     })),
+    onlinePayment: { channel: f.onlinePayment.channel, feesPaidBy: f.onlinePayment.feesPaidBy },
   }
   // Licensed add-on groups are only ever sent when the server sent them.
   if (f.features) payload.features = { membership: f.features.membership }
@@ -290,7 +294,7 @@ function validate(f: Form): { payload: Payload | null; errors: Errors } {
   return { payload: Object.keys(errors).length ? null : payload, errors }
 }
 
-type SectionId = 'store' | 'banner' | 'shipping' | 'quantity' | 'bulk' | 'box' | 'partners' | 'points' | 'orders' | 'payments' | 'membership'
+type SectionId = 'store' | 'banner' | 'shipping' | 'quantity' | 'bulk' | 'box' | 'partners' | 'points' | 'orders' | 'payments' | 'gateway' | 'membership'
 
 const SECTIONS: { id: SectionId; label: string; licensed?: true }[] = [
   { id: 'store', label: 'Store' },
@@ -303,6 +307,7 @@ const SECTIONS: { id: SectionId; label: string; licensed?: true }[] = [
   { id: 'points', label: 'Points' },
   { id: 'orders', label: 'Orders and stock' },
   { id: 'payments', label: 'Payment methods' },
+  { id: 'gateway', label: 'ToyyibPay' },
   { id: 'membership', label: 'Membership', licensed: true },
 ]
 
@@ -329,6 +334,7 @@ function sectionOf(key: string): SectionId {
     orders: 'orders',
     inventory: 'orders',
     paymentMethods: 'payments',
+    onlinePayment: 'payments',
     features: 'membership',
     membership: 'membership',
   }
@@ -1087,6 +1093,8 @@ export default function Settings() {
                   method={m}
                   index={i}
                   gateway={m.type === 'gateway' ? gateway : null}
+                  online={form.onlinePayment}
+                  onOnlineChange={(patch) => update((d) => void Object.assign(d.onlinePayment, patch))}
                   errors={errors}
                   onChange={(patch) => update((d) => void Object.assign(d.paymentMethods[i], patch))}
                 />
@@ -1098,6 +1106,15 @@ export default function Settings() {
                 </p>
               )}
             </div>
+          </Section>
+
+          {/* ---------- ToyyibPay keys and mode (applied immediately, password-confirmed) ---------- */}
+          <Section
+            id="gateway"
+            title="ToyyibPay"
+            description="Keys for the ToyyibPay sandbox and your live account, and which one takes payments. Changes here apply straight away, separately from Save changes."
+          >
+            <ToyyibPayPanel initial={gateway} />
           </Section>
 
           {/* ---------- Licensed add-on: only rendered when the server sends it ---------- */}
@@ -1386,12 +1403,16 @@ function PaymentMethodCard({
   method,
   index,
   gateway,
+  online,
+  onOnlineChange,
   errors,
   onChange,
 }: {
   method: PaymentMethodSetting
   index: number
   gateway: SettingsResponse['gateway'] | null
+  online: StoreSettings['onlinePayment']
+  onOnlineChange: (patch: Partial<StoreSettings['onlinePayment']>) => void
   errors: Errors
   onChange: (patch: Partial<PaymentMethodSetting>) => void
 }) {
@@ -1422,22 +1443,40 @@ function PaymentMethodCard({
         <div className="mt-3 rounded-lg border bg-surface p-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">{gateway.provider}</span>
-            <Pill tone={gateway.configured ? 'success' : 'destructive'}>{gateway.configured ? 'Connected' : 'Not set up'}</Pill>
-            <Pill tone={gateway.sandbox ? 'warning' : 'success'}>{gateway.sandbox ? 'Test mode (sandbox)' : 'Live'}</Pill>
+            <Pill tone={gateway.ready ? 'success' : 'destructive'}>{gateway.ready ? 'Connected' : 'Not set up'}</Pill>
+            <Pill tone={gateway.mode === 'production' ? 'success' : 'warning'}>{gateway.mode === 'production' ? 'Live' : 'Test mode (sandbox)'}</Pill>
           </div>
-          {!gateway.configured && <p className="mt-2 text-xs text-destructive">Online payments will not work until the API keys are added on the server.</p>}
-          {gateway.configured && gateway.sandbox && <p className="mt-2 text-xs text-muted-foreground">Test mode: no real money moves. Switch the server to live keys before launch.</p>}
-          <div className="mt-3">
-            <p className="text-xs text-muted-foreground">Callback URL (paste this into your {gateway.provider} account if asked)</p>
-            <div className="mt-1 flex min-w-0 items-center gap-1 rounded-md border bg-background pl-3">
-              <code className="min-w-0 flex-1 truncate font-mono text-xs">{gateway.callbackUrl}</code>
-              <CopyButton text={gateway.callbackUrl} label="Copy callback URL" />
-            </div>
+          {!gateway.ready && <p className="mt-2 text-xs text-destructive">Customers cannot choose online payment until keys are added in ToyyibPay below.</p>}
+          {gateway.ready && gateway.mode === 'sandbox' && <p className="mt-2 text-xs text-muted-foreground">Test mode: no real money moves. Switch to production in ToyyibPay below before launch.</p>}
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <Field label="Payment options" htmlFor={`pm-${method.id}-channel`} hint="Card needs to be enabled on your ToyyibPay account.">
+              <Select value={online.channel} onValueChange={(v) => onOnlineChange({ channel: v as StoreSettings['onlinePayment']['channel'] })}>
+                <SelectTrigger id={`pm-${method.id}-channel`} className="w-full data-[size=default]:h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="both">FPX online banking and card</SelectItem>
+                  <SelectItem value="fpx">FPX online banking only</SelectItem>
+                  <SelectItem value="card">Card only</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="ToyyibPay fee paid by" htmlFor={`pm-${method.id}-fees`} hint="Customer: the fee is added on the payment page.">
+              <Select value={online.feesPaidBy} onValueChange={(v) => onOnlineChange({ feesPaidBy: v as StoreSettings['onlinePayment']['feesPaidBy'] })}>
+                <SelectTrigger id={`pm-${method.id}-fees`} className="w-full data-[size=default]:h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="store">The store</SelectItem>
+                  <SelectItem value="customer">The customer</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
           </div>
-          <p className="mt-3 flex items-start gap-1.5 text-xs text-muted-foreground">
-            <LockKeyIcon className="mt-px size-3.5 shrink-0" />
-            API keys are stored in the server .env file, not here, so they never appear in the browser.
-          </p>
+          <a href="#gateway" className="mt-3 inline-flex items-center gap-1.5 text-xs text-gold-ink hover:underline">
+            <LockKeyIcon className="size-3.5" />
+            Keys and live or test mode: ToyyibPay section
+          </a>
         </div>
       )}
 

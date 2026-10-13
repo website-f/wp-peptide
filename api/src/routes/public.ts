@@ -5,12 +5,13 @@ import { z } from 'zod'
 import { db } from '../lib/db.js'
 import { notFound, parse } from '../lib/http.js'
 import { coaDto, productCard, productDetail, productInclude } from '../lib/serialize.js'
+import { gatewayReady } from '../lib/gateway.js'
 import { getSettings, publicSettings } from '../lib/settings.js'
 
 export async function publicRoutes(app: FastifyInstance) {
   app.get('/api/health', { logLevel: 'silent' }, async () => ({ ok: true }))
 
-  app.get('/api/settings', async () => publicSettings(await getSettings()))
+  app.get('/api/settings', async () => publicSettings(await getSettings(), await gatewayReady()))
 
   app.get('/api/categories', async () => {
     const cats = await db.category.findMany({

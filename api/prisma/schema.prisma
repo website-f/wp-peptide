@@ -234,10 +234,30 @@ model Order {
   items               OrderItem[]
   events              OrderEvent[]
   commission          Commission?
+  bills               PaymentBill[]
 
   @@index([status, createdAt])
   @@index([createdAt])
   @@index([email])
+}
+
+/// Every ToyyibPay bill issued for an order. A shopper can pay any of them (old tab, resent
+/// link), so payment checks look at all of them, each against the gateway it was created on.
+model PaymentBill {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  billCode    String   @unique
+  /// "sandbox" or "production": which ToyyibPay the bill lives on.
+  env         String
+  amountCents Int
+  paymentUrl  String
+  expiresAt   DateTime?
+  /// Set once the bill can no longer be paid: deactivated at ToyyibPay, or it is the bill that paid.
+  closedAt    DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([orderId, createdAt])
 }
 
 model OrderItem {

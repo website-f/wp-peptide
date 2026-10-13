@@ -33,7 +33,11 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8600}
       API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:8600}
-      TOYYIBPAY_BASE_URL: ${TOYYIBPAY_BASE_URL:-https://dev.toyyibpay.com}
+      # Encrypts the ToyyibPay keys saved in Admin > Settings. Keep it safe and unchanged:
+      # if it changes, saved keys can no longer be read and must be entered again.
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?set DATA_ENCRYPTION_KEY in .env (openssl rand -hex 32)}
+      # Legacy only: imported once into Admin > Settings if nothing is set up there yet, then ignored.
+      TOYYIBPAY_BASE_URL: ${TOYYIBPAY_BASE_URL:-}
       TOYYIBPAY_SECRET_KEY: ${TOYYIBPAY_SECRET_KEY:-}
       TOYYIBPAY_CATEGORY_CODE: ${TOYYIBPAY_CATEGORY_CODE:-}
       SMTP_HOST: ${SMTP_HOST:-}

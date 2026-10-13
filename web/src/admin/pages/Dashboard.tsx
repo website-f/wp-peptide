@@ -11,6 +11,7 @@ import {
   TruckIcon,
   UserPlusIcon,
   WalletIcon,
+  WarningCircleIcon,
   WarningIcon,
 } from '@phosphor-icons/react'
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
@@ -203,6 +204,14 @@ function AttentionQueue({ data }: { data: DashboardData }) {
       hint: 'Partners asking to be paid',
       count: q.payoutRequests,
       extra: q.payoutRequests ? money(q.payoutRequestedCents) : undefined,
+      urgent: true,
+    },
+    {
+      to: '/admin/orders?issue=payment',
+      icon: <WarningCircleIcon />,
+      label: 'Payment issues',
+      hint: 'Extra payments to refund, or bills paid short',
+      count: q.paymentIssues ?? 0,
       urgent: true,
     },
     { to: '/admin/inbox', icon: <ChatCircleTextIcon />, label: 'Unread messages', hint: 'From the contact form', count: q.unreadMessages, urgent: true },

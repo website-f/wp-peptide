@@ -110,6 +110,13 @@ export interface StoreSettings {
   }
   membership: Record<PaidTier, { monthlyCents: number; yearlyCents: number }>
   paymentMethods: PaymentMethod[]
+  /** ToyyibPay bill options. Keys and sandbox/production mode live in lib/gateway.ts (encrypted). */
+  onlinePayment: {
+    /** Which ToyyibPay channels the payment page offers. Card must be enabled on the ToyyibPay account. */
+    channel: 'fpx' | 'card' | 'both'
+    /** Who pays the ToyyibPay transaction fee. */
+    feesPaidBy: 'store' | 'customer'
+  }
 }
 
 export const DEFAULT_SETTINGS: StoreSettings = {
@@ -209,6 +216,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
       enabled: false,
     },
   ],
+  onlinePayment: { channel: 'both', feesPaidBy: 'store' },
 }
 
 let cache: { at: number; value: StoreSettings } | null = null
@@ -262,9 +270,10 @@ export async function saveSettings(patch: unknown): Promise<StoreSettings> {
 /** Which optional programs this installation is licensed to show at all. */
 export const licensed = () => ({ membership: env.enableMembership })
 
-export function publicSettings(s: StoreSettings) {
+/** gatewayReady: online payment is hidden from shoppers while ToyyibPay is not set up. */
+export function publicSettings(s: StoreSettings, gatewayReady: boolean) {
   // Unlicensed programs are not described to the public at all.
-  const { membership, features, announcement: _legacy, banner, ...rest } = s
+  const { membership, features, announcement: _legacy, banner, onlinePayment: _gateway, ...rest } = s
   // Shoppers only receive messages that are switched on and inside their schedule.
   const now = Date.now()
   const live = banner.enabled
@@ -279,7 +288,7 @@ export function publicSettings(s: StoreSettings) {
     banner: { style: banner.style, rotateSeconds: banner.rotateSeconds, dismissible: banner.dismissible, messages: live },
     points,
     ...(env.enableMembership ? { membership, features } : {}),
-    paymentMethods: s.paymentMethods.filter((m) => m.enabled).map(({ id, label, type, instructions }) => ({ id, label, type, instructions: type === 'gateway' ? instructions : null })),
+    paymentMethods: s.paymentMethods.filter((m) => m.enabled && (m.type !== 'gateway' || gatewayReady)).map(({ id, label, type, instructions }) => ({ id, label, type, instructions: type === 'gateway' ? instructions : null })),
   }
 }
 

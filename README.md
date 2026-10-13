@@ -14,7 +14,7 @@ Information architecture follows rebirthlabs.org; brand, colours, copy and image
 
 **Storefront**: home (hero, popular compounds, 5-cell bento, about, tier staircase, 4 ways to save, COA rail, FAQ), shop with search/category/sort, product pages (size + 1/3/5/10 quantity tiers, live points estimate, certificate summary with a view-only certificate viewer, lot history, specs), cart drawer with tier hints and free-shipping nudge, checkout (guest or account, points redemption, discount and partner codes), order page with ToyyibPay pay/verify/retry and tracking, Build a Box (4-slot monthly subscription), Bulk orders (wholesale ladder), COA library, Membership (Insider/VIP/Founder), Points, Partner program + application, partner dashboard, customer account, contact, FAQ, policies, 21+ age gate. Dark and light themes, mobile-first.
 
-**Admin** (`/admin`): dashboard (KPIs vs previous period, needs-attention queue, revenue chart, top products, low stock), orders (filters, full detail, status actions with tracking, ToyyibPay re-check), products (variants with cost/stock, image upload, lab data), COA library management (upload a PDF, it is published as view-only pages), customers (tiers, points adjustments), partners (applications, commission rates, codes, commissions, payouts), finance (P&L, refunds, COGS, commissions, points liability, product margins, CSV export), Build a Box subscriptions, coupons, inbox + newsletter export, store settings (shipping, tiers, wholesale, box, partner terms, points, membership prices, payment methods).
+**Admin** (`/admin`): dashboard (KPIs vs previous period, needs-attention queue, revenue chart, top products, low stock), orders (filters, full detail, status actions with tracking, ToyyibPay re-check), products (variants with cost/stock, image upload, lab data), COA library management (upload a PDF, it is published as view-only pages), customers (tiers, points adjustments), partners (applications, commission rates, codes, commissions, payouts), finance (P&L, refunds, COGS, commissions, points liability, product margins, CSV export), Build a Box subscriptions, coupons, inbox + newsletter export, store settings (shipping, tiers, wholesale, box, partner terms, points, payment methods, ToyyibPay keys and live/test mode).
 
 **Money rules: everything is a setting.** No price, percentage, threshold or limit is hardcoded. The pricing engine (`api/src/lib/pricing.ts`) reads Admin > Settings and each coupon record, and the shop renders its copy from the same values.
 
@@ -39,7 +39,7 @@ Information architecture follows rebirthlabs.org; brand, colours, copy and image
 ## Run it locally
 
 ```bash
-cp .env.example .env            # fill POSTGRES_PASSWORD, JWT_SECRET, ToyyibPay keys
+cp .env.example .env            # fill POSTGRES_PASSWORD, JWT_SECRET, DATA_ENCRYPTION_KEY
 docker compose up -d --build    # http://localhost:8600
 ```
 
@@ -53,7 +53,7 @@ On the very first start the seeder creates `admin@kyvo.local` with a random one-
 docker compose logs api | grep -A8 "admin account created"
 ```
 
-Sign in at `/admin`; the panel stays locked until you set your own email and password. A marker row in the database makes this a one-shot: the seeder never creates or changes an admin again, even after restarts or rebuilds.
+Sign in at `/admin`; the panel stays locked until you set your own email and password. Then add the ToyyibPay keys in Admin > Settings > ToyyibPay. A marker row in the database makes this a one-shot: the seeder never creates or changes an admin again, even after restarts or rebuilds.
 
 Lost the password? Issue a new one-time password (prints once, must be changed at next sign-in):
 
@@ -117,10 +117,22 @@ The script keeps 14 days of database backups in `/opt/kyvo/backups/`. Never run 
 
 ## ToyyibPay
 
-- Sandbox: `TOYYIBPAY_BASE_URL=https://dev.toyyibpay.com` with the sandbox secret key and category code.
-- Live: switch to `https://toyyibpay.com` with the live key and category, and set `PUBLIC_URL` / `API_PUBLIC_URL` to the public HTTPS domain so the return URL and the server callback (`/api/payments/toyyibpay/callback`) are reachable.
-- An order is marked paid only after the server re-queries `getBillTransactions` and the amount matches. The callback hash is verified, but a forged or replayed callback cannot mark an order paid on its own.
-- Keys live only in `.env`. The admin settings page shows whether the gateway is configured, never the keys.
+Keys and live/test mode are managed in **Admin > Settings > ToyyibPay**, not in `.env`, so going live needs no redeploy.
+
+- **Two key sets**: sandbox (dev.toyyibpay.com) and production (toyyibpay.com). Switching mode is one toggle; each side keeps its own keys.
+- **Verified before saving**: every save asks ToyyibPay (`getCategoryDetails`) whether the secret key owns the category. Bad keys are never stored.
+- **Encrypted at rest**: category code and secret key are sealed with AES-256-GCM using a key derived from `DATA_ENCRYPTION_KEY` (server `.env`), bound to each field. The database and its backups hold only ciphertext; the admin panel only ever sees the category code and the last 4 characters of the key.
+- **Guarded changes**: saving keys, removing keys and switching mode ask for the admin's password, and each change is written to the change history. Going live requires verified production keys and an `https` `PUBLIC_URL` / `API_PUBLIC_URL` (the callback must be reachable).
+- **Keep `DATA_ENCRYPTION_KEY` safe and unchanged.** `deploy/deploy-vps.sh` generates it once. If it is lost or changed, online payment switches itself off (shoppers no longer see it) and the keys must be entered again in the admin. Back up `.env` separately from the database.
+- Upgrading from keys in `.env`: on first start they are imported once into encrypted settings; then delete the `TOYYIBPAY_*` lines.
+
+How payments are confirmed:
+
+- An order is marked paid only after the server re-queries `getBillTransactions` and the amount matches. The callback hash is checked against the secret of the gateway that issued the bill, but a forged or replayed callback cannot mark an order paid on its own.
+- Every bill issued for an order is recorded with the gateway it was created on (`PaymentBill`). Payment checks look at all of them, so a shopper who pays from an old tab is still credited, and sandbox bills keep reconciling after you switch to production.
+- One link per order: "Pay now" reuses the order's open bill. A bill closes when the unpaid order would be cancelled, and once an order is paid, cancelled or expired its other bills are deactivated at ToyyibPay (`inactiveBill`).
+- Money that still lands after that (double payment, or paid after cancellation) is flagged on the order ("Extra payment ... needs a refund") and counted under **Payment issues** on the dashboard. ToyyibPay has no refund API: refund it from the ToyyibPay dashboard.
+- Payment options (FPX, card or both) and who pays the ToyyibPay fee are in Admin > Settings > Payment methods. Card payments must be enabled on the ToyyibPay account.
 
 ## Email
 

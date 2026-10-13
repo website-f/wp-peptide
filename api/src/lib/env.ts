@@ -6,7 +6,7 @@ function req(name: string, fallback?: string): string {
 
 const trimSlash = (s: string) => (s.endsWith('/') ? s.slice(0, -1) : s)
 
-const isProd =process.env.NODE_ENV === 'production'
+const isProd = process.env.NODE_ENV === 'production'
 
 export const env = {
   isProd,
@@ -19,8 +19,13 @@ export const env = {
   publicUrl: trimSlash(process.env.PUBLIC_URL ?? 'http://localhost:5173'),
   // Where ToyyibPay can reach us server-to-server for payment callbacks.
   apiPublicUrl: trimSlash(process.env.API_PUBLIC_URL ?? process.env.PUBLIC_URL ?? 'http://localhost:8601'),
-  toyyib: {
-    baseUrl: trimSlash(process.env.TOYYIBPAY_BASE_URL ?? 'https://dev.toyyibpay.com'),
+  // Seals payment-gateway keys stored in the database (lib/crypto.ts). Fail closed in production.
+  // Changing it makes stored keys unreadable: they then have to be entered again in Admin > Settings.
+  dataEncryptionKey: isProd ? req('DATA_ENCRYPTION_KEY') : req('DATA_ENCRYPTION_KEY', 'dev-only-insecure-data-key'),
+  // Legacy: ToyyibPay keys used to live here. They are imported once into Admin > Settings
+  // (encrypted) when no gateway has been set up there yet, and are ignored after that.
+  legacyToyyib: {
+    baseUrl: trimSlash(process.env.TOYYIBPAY_BASE_URL ?? ''),
     secretKey: process.env.TOYYIBPAY_SECRET_KEY ?? '',
     categoryCode: process.env.TOYYIBPAY_CATEGORY_CODE ?? '',
   },

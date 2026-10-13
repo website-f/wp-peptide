@@ -10,10 +10,12 @@ import { db, ensureSequences } from './lib/db.js'
 import { env } from './lib/env.js'
 import { sendError } from './lib/http.js'
 import { expireUnpaidOrders } from './lib/orders.js'
-import { reconcile, toyyibEnabled } from './lib/toyyibpay.js'
+import { activeCreds, importLegacyEnvKeys } from './lib/gateway.js'
+import { reconcile } from './lib/toyyibpay.js'
 import { accountRoutes } from './routes/account.js'
 import { adminCatalogRoutes } from './routes/admin/catalog.js'
 import { adminOrderRoutes } from './routes/admin/orders.js'
+import { adminPaymentRoutes } from './routes/admin/payments.js'
 import { adminPeopleRoutes } from './routes/admin/people.js'
 import { reportRoutes } from './routes/admin/reports.js'
 import { adminStoreRoutes } from './routes/admin/store.js'
@@ -62,6 +64,7 @@ await app.register(
     await admin.register(adminCatalogRoutes)
     await admin.register(adminPeopleRoutes)
     await admin.register(adminStoreRoutes)
+    await admin.register(adminPaymentRoutes)
   },
   { prefix: '/api/admin' },
 )
@@ -69,6 +72,8 @@ await app.register(
 async function bootstrap() {
   await ensureSequences()
   // The admin account is created once by the seeder (prisma/admin.ts), never from env.
+  // ToyyibPay keys live encrypted in Admin > Settings; old .env keys are moved there once.
+  await importLegacyEnvKeys((m) => app.log.warn(m))
 }
 
 // Paid memberships lapse back to the free tier when their period ends.
@@ -85,7 +90,8 @@ void sweepUnpaid()
 setInterval(() => void sweepUnpaid(), 30 * 60 * 1000).unref()
 
 await app.listen({ port: env.port, host: '0.0.0.0' })
-console.log(`KYVO API listening on :${env.port} (ToyyibPay ${toyyibEnabled() ? `ready, ${env.toyyib.baseUrl}` : 'not configured'})`)
+const gw = await activeCreds()
+console.log(`KYVO API listening on :${env.port} (ToyyibPay ${gw ? `ready, ${gw.env}` : 'not set up: Admin > Settings > ToyyibPay'})`)
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   process.on(sig, async () => {

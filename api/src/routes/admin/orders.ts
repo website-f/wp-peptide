@@ -6,7 +6,7 @@ import { db } from '../../lib/db.js'
 import { badRequest, notFound, parse, toPage } from '../../lib/http.js'
 import { ALLOWED, createOrder, setOrderStatus } from '../../lib/orders.js'
 import { buildQuote } from '../../lib/pricing.js'
-import { reconcile } from '../../lib/toyyibpay.js'
+import { PAYMENT_ISSUE, reconcile } from '../../lib/toyyibpay.js'
 import { mailOrderEvent } from '../../lib/mailer.js'
 import { getSettings } from '../../lib/settings.js'
 import { boxExtras } from '../checkout.js'
@@ -20,6 +20,7 @@ export async function adminOrderRoutes(app: FastifyInstance) {
         status: z.enum([...STATUSES, 'OPEN']).optional(),
         kind: z.enum(['STANDARD', 'BOX', 'WHOLESALE', 'MEMBERSHIP']).optional(),
         q: z.string().max(80).optional(),
+        issue: z.literal('payment').optional(),
         page: z.coerce.number().optional(),
         pageSize: z.coerce.number().optional(),
       }),
@@ -29,6 +30,7 @@ export async function adminOrderRoutes(app: FastifyInstance) {
     if (q.status === 'OPEN') where.status = { in: ['PAID', 'PROCESSING'] }
     else if (q.status) where.status = q.status
     if (q.kind) where.kind = q.kind
+    if (q.issue === 'payment') where.AND = [PAYMENT_ISSUE]
     if (q.q) {
       where.OR = [
         { number: { contains: q.q, mode: 'insensitive' } },

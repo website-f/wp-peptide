@@ -7,6 +7,7 @@ import { HttpError, badRequest, notFound, parse } from '../lib/http.js'
 import { createMembershipOrder, createOrder, orderInclude, paymentInstructionsFor, publicOrder } from '../lib/orders.js'
 import { buildQuote, publicQuote } from '../lib/pricing.js'
 import { getSettings, type PaymentMethod } from '../lib/settings.js'
+import { gatewayReady } from '../lib/gateway.js'
 import { createBill } from '../lib/toyyibpay.js'
 import { mailOrderEvent } from '../lib/mailer.js'
 import { passwordSchema } from './auth.js'
@@ -54,6 +55,7 @@ async function checkPaymentMethod(id: string) {
   const s = await getSettings()
   const m = s.paymentMethods.find((x) => x.id === id && x.enabled)
   if (!m) throw badRequest('Choose a payment method')
+  if (m.type === 'gateway' && !(await gatewayReady())) throw badRequest('Online payment is not available right now. Choose another payment method.')
   return m
 }
 

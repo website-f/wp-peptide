@@ -5,7 +5,8 @@ import { currentUser } from '../lib/auth.js'
 import { db } from '../lib/db.js'
 import { badRequest, notFound, parse } from '../lib/http.js'
 import { getSettings } from '../lib/settings.js'
-import { createBill, reconcile, validCallbackHash } from '../lib/toyyibpay.js'
+import { credsFor, PAY_ENVS, type PayEnv } from '../lib/gateway.js'
+import { createBill, flagLatePayment, reconcile, validCallbackHash } from '../lib/toyyibpay.js'
 
 async function findOwnedOrder(number: string, key: string | undefined, req: Parameters<typeof currentUser>[0]) {
   const order = await db.order.findUnique({ where: { number } })
@@ -30,11 +31,9 @@ export async function paymentRoutes(app: FastifyInstance) {
     const method = s.paymentMethods.find((m) => m.id === order.paymentMethod)
     if (method?.type !== 'gateway') throw badRequest('This order uses an offline payment method')
     // A previous bill may already be paid (e.g. the shopper closed the tab before returning).
-    if (order.billCode) {
-      const r = await reconcile(order, 'toyyibpay')
-      if (r === 'paid') return { paid: true }
-    }
-    // Bills expire after 3 days, so always issue a fresh one when resuming.
+    const r = await reconcile(order, 'toyyibpay')
+    if (r === 'paid') return { paid: true }
+    // Reuses the order's open bill, or issues one that closes when the order expires.
     const { paymentUrl } = await createBill(order)
     return { paid: false, paymentUrl }
   })
@@ -60,13 +59,16 @@ export async function paymentRoutes(app: FastifyInstance) {
       }
     } else Object.assign(body, (req.body ?? {}) as Record<string, string | undefined>)
 
-    const order = body.order_id ? await db.order.findUnique({ where: { number: String(body.order_id).slice(0, 20) } }) : null
-    const signed = validCallbackHash(body)
+    // The bill code identifies the order and which ToyyibPay (sandbox or production) sent it.
+    const bill = body.billcode ? await db.paymentBill.findUnique({ where: { billCode: String(body.billcode).slice(0, 40) }, include: { order: true } }) : null
+    const order = bill?.order ?? (body.order_id ? await db.order.findUnique({ where: { number: String(body.order_id).slice(0, 20) } }) : null)
+    const keys = bill ? [await credsFor(bill.env as PayEnv)] : await Promise.all(PAY_ENVS.map(credsFor))
+    const signed = keys.some((k) => k && validCallbackHash(body, k.secretKey))
     // The signature proves origin, but reconcile() is the real gate: it asks ToyyibPay's API
     // for the bill's status and amount. So an unsigned callback that names a bill we actually
     // issued for that order may still trigger that (read-only) re-check; it can never mark an
     // order paid by itself.
-    const knownBill = Boolean(order && order.billCode && body.billcode && body.billcode === order.billCode)
+    const knownBill = Boolean(order && bill && bill.orderId === order.id && (!body.order_id || body.order_id === order.number))
     if (!signed) {
       req.log.warn(
         { order: body.order_id, contentType: req.headers['content-type']?.split(';')[0], fields: Object.keys(body), knownBill },
@@ -76,7 +78,9 @@ export async function paymentRoutes(app: FastifyInstance) {
     }
     if (order) {
       try {
-        await reconcile(order, 'toyyibpay-callback')
+        if (order.status === 'PENDING_PAYMENT') await reconcile(order, 'toyyibpay-callback')
+        // Paid again on another bill, or after the order was cancelled: flag it for a refund.
+        else if (bill) await flagLatePayment(order, bill)
       } catch (err) {
         req.log.error(err, 'toyyibpay reconcile failed')
         return reply.status(500).send('retry')

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import type { OrderStatus } from '@prisma/client'
 import { z } from 'zod'
 import { db } from '../../lib/db.js'
+import { PAYMENT_ISSUE } from '../../lib/toyyibpay.js'
 import { csvEscape, parse } from '../../lib/http.js'
 import { getSettings } from '../../lib/settings.js'
 
@@ -120,6 +121,7 @@ export async function reportRoutes(app: FastifyInstance) {
         payoutRequestedCents: payoutReqs._sum.amountCents ?? 0,
         commissionsOwedCents: owed._sum.amountCents ?? 0,
         unreadMessages: unread,
+        paymentIssues: await db.order.count({ where: PAYMENT_ISSUE }),
       },
       series,
       topProducts: top.map((t) => ({
