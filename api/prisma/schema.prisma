@@ -1,0 +1,397 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// All money is stored as integer cents (USD).
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum Tier {
+  MEMBER
+  INSIDER
+  VIP
+  FOUNDER
+}
+
+enum ProductStatus {
+  ACTIVE
+  DRAFT
+  ARCHIVED
+}
+
+enum ProductForm {
+  VIAL
+  MIST
+  SUPPLY
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum OrderKind {
+  STANDARD
+  BOX
+  WHOLESALE
+  MEMBERSHIP
+}
+
+enum AffiliateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  PAID
+  VOID
+}
+
+enum PayoutStatus {
+  REQUESTED
+  PAID
+  REJECTED
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  COMPLETED
+}
+
+model User {
+  id                 String         @id @default(cuid())
+  email              String         @unique
+  passwordHash       String
+  name               String
+  phone              String?
+  role               Role           @default(CUSTOMER)
+  tier               Tier           @default(MEMBER)
+  tierExpiresAt      DateTime?
+  pointsBalance      Int            @default(0)
+  createdAt          DateTime       @default(now())
+  lastLoginAt        DateTime?
+  // Set on the bootstrap admin so the one-time password must be replaced at first sign-in.
+  mustChangePassword Boolean        @default(false)
+  orders             Order[]
+  affiliate          Affiliate?
+  pointsTxns         PointsTxn[]
+  subscriptions      Subscription[]
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  sortOrder Int       @default(0)
+  products  Product[]
+}
+
+model Product {
+  id               String        @id @default(cuid())
+  slug             String        @unique
+  name             String
+  tagline          String        @default("")
+  description      String        @default("")
+  image            String?
+  gallery          String[]      @default([])
+  categoryId       String?
+  category         Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  form             ProductForm   @default(VIAL)
+  status           ProductStatus @default(ACTIVE)
+  featured         Boolean       @default(false)
+  boxEligible      Boolean       @default(true)
+  purity           Decimal?      @db.Decimal(5, 2)
+  casNumber        String?
+  molecularFormula String?
+  molecularWeight  String?
+  sequence         String?
+  storage          String?
+  sortOrder        Int           @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  variants         Variant[]
+  coas             Coa[]
+  orderItems       OrderItem[]
+
+  @@index([status, sortOrder])
+}
+
+model Variant {
+  id         String      @id @default(cuid())
+  productId  String
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  label      String
+  sku        String      @unique
+  priceCents Int
+  costCents  Int         @default(0)
+  stock      Int         @default(0)
+  active     Boolean     @default(true)
+  sortOrder  Int         @default(0)
+  orderItems OrderItem[]
+}
+
+model Coa {
+  id             String   @id @default(cuid())
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  lotNumber      String   @unique
+  variantLabel   String?
+  purity         Decimal  @db.Decimal(5, 2)
+  labeledAmount  String?
+  measuredAmount String?
+  identity       String   @default("Confirmed (LC-MS)")
+  endotoxin      String   @default("Pass")
+  microbial      String   @default("Pass")
+  heavyMetals    String   @default("Pass")
+  appearance     String   @default("White lyophilized powder")
+  lab            String   @default("Independent ISO/IEC 17025 lab")
+  assays         Int      @default(6)
+  testedAt       DateTime
+  fileUrl        String?
+  createdAt      DateTime @default(now())
+}
+
+model Order {
+  id                  String        @id @default(cuid())
+  number              String        @unique
+  accessKey           String        @unique
+  kind                OrderKind     @default(STANDARD)
+  status              OrderStatus   @default(PENDING_PAYMENT)
+  userId              String?
+  user                User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email               String
+  name                String
+  phone               String?
+  shippingAddress     Json
+  paymentMethod       String
+  paymentRef          String?
+  billCode            String?
+  paymentUrl          String?
+  paymentStatusNote   String?
+  subtotalCents       Int
+  tierDiscountCents   Int           @default(0)
+  couponDiscountCents Int           @default(0)
+  pointsDiscountCents Int           @default(0)
+  shippingCents       Int           @default(0)
+  taxCents            Int           @default(0)
+  totalCents          Int
+  costCents           Int           @default(0)
+  couponCode          String?
+  affiliateId         String?
+  affiliate           Affiliate?    @relation(fields: [affiliateId], references: [id], onDelete: SetNull)
+  pointsRedeemed      Int           @default(0)
+  pointsEarned        Int           @default(0)
+  carrier             String?
+  trackingNumber      String?
+  customerNote        String?
+  adminNote           String?
+  meta                Json?
+  subscriptionId      String?
+  subscription        Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  createdAt           DateTime      @default(now())
+  paidAt              DateTime?
+  shippedAt           DateTime?
+  deliveredAt         DateTime?
+  cancelledAt         DateTime?
+  refundedAt          DateTime?
+  items               OrderItem[]
+  events              OrderEvent[]
+  commission          Commission?
+
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@index([email])
+}
+
+model OrderItem {
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String?
+  product        Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variantId      String?
+  variant        Variant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  name           String
+  variantLabel   String
+  image          String?
+  quantity       Int
+  unitPriceCents Int
+  discountPct    Int      @default(0)
+  lineTotalCents Int
+  unitCostCents  Int      @default(0)
+}
+
+model OrderEvent {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type      String
+  message   String
+  actor     String?
+  createdAt DateTime @default(now())
+}
+
+model Coupon {
+  id          String     @id @default(cuid())
+  code        String     @unique
+  type        CouponType @default(PERCENT)
+  value       Int
+  minSubtotal Int        @default(0)
+  maxUses     Int?
+  uses        Int        @default(0)
+  expiresAt   DateTime?
+  active      Boolean    @default(true)
+  description String?
+  createdAt   DateTime   @default(now())
+}
+
+model Affiliate {
+  id                String           @id @default(cuid())
+  userId            String           @unique
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code              String           @unique
+  couponCode        String           @unique
+  status            AffiliateStatus  @default(PENDING)
+  commissionRate    Int              @default(20)
+  platform          String
+  handle            String
+  otherHandles      String?
+  website           String?
+  paymentEmail      String?
+  // Payouts are manual bank transfers; these details are what the admin pays into.
+  payoutMethod      String           @default("BANK")
+  bankName          String?
+  bankAccountName   String?
+  bankAccountNumber String?
+  promotionPlan     String?
+  adminNote         String?
+  createdAt         DateTime         @default(now())
+  approvedAt        DateTime?
+  clicks            AffiliateClick[]
+  commissions       Commission[]
+  payouts           Payout[]
+  orders            Order[]
+}
+
+model AffiliateClick {
+  id          String    @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  landing     String?
+  referrer    String?
+  visitorHash String?
+  createdAt   DateTime  @default(now())
+
+  @@index([affiliateId, createdAt])
+}
+
+model Commission {
+  id          String           @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate        @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  orderId     String           @unique
+  order       Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  baseCents   Int
+  rate        Int
+  amountCents Int
+  status      CommissionStatus @default(PENDING)
+  payoutId    String?
+  payout      Payout?          @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+  createdAt   DateTime         @default(now())
+  approvedAt  DateTime?
+
+  @@index([affiliateId, status])
+}
+
+model Payout {
+  id          String       @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate    @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  amountCents Int
+  method      String
+  destination String?
+  reference   String?
+  status      PayoutStatus @default(REQUESTED)
+  note        String?
+  createdAt   DateTime     @default(now())
+  paidAt      DateTime?
+  commissions Commission[]
+}
+
+model PointsTxn {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  delta     Int
+  reason    String
+  orderId   String?
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Subscription {
+  id              String             @id @default(cuid())
+  userId          String?
+  user            User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email           String
+  name            String
+  shippingAddress Json
+  items           Json
+  priceCents      Int
+  status          SubscriptionStatus @default(ACTIVE)
+  commitMonths    Int                @default(3)
+  boxesShipped    Int                @default(0)
+  nextShipAt      DateTime
+  createdAt       DateTime           @default(now())
+  cancelledAt     DateTime?
+  orders          Order[]
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  topic     String   @default("General")
+  orderRef  String?
+  message   String
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Subscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  key   String @id
+  value Json
+}

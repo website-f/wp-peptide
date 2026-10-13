@@ -1,0 +1,41 @@
+{
+  "name": "kyvo-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "admin:reset": "tsx prisma/admin.ts reset"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.3",
+    "@fastify/formbody": "^9.0.1",
+    "@fastify/multipart": "^10.1.3",
+    "@fastify/rate-limit": "^11.2.1",
+    "@fastify/static": "^10.1.6",
+    "@prisma/client": "^6.19.3",
+    "bcryptjs": "^3.0.3",
+    "fastify": "^5.12.5",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^10.1.0",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.6"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^26.6.5",
+    "@types/nodemailer": "^8.0.2",
+    "prisma": "^6.19.3",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9"
+  }
+}

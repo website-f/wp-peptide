@@ -1,0 +1,15 @@
+# VPS override: everything stays on localhost and the shared Caddy in
+# /opt/reverse-proxy terminates TLS and forwards the public domain to KYVO_PORT.
+#   docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
+services:
+  db:
+    ports: !reset []
+
+  api:
+    environment:
+      COOKIE_SECURE: "true"
+      SEED_DEMO: "0"
+
+  web:
+    ports: !override
+      - "127.0.0.1:${KYVO_PORT:-8600}:80"

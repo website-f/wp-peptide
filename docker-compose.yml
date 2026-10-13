@@ -1,0 +1,66 @@
+name: kyvo
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kyvo
+      POSTGRES_USER: kyvo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Local tooling only (Prisma Studio, psql). Removed by docker-compose.vps.yml.
+      - "127.0.0.1:${KYVO_DB_PORT:-8602}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kyvo -d kyvo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 8601
+      DATABASE_URL: postgresql://kyvo:${POSTGRES_PASSWORD}@db:5432/kyvo?schema=public
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8600}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:8600}
+      TOYYIBPAY_BASE_URL: ${TOYYIBPAY_BASE_URL:-https://dev.toyyibpay.com}
+      TOYYIBPAY_SECRET_KEY: ${TOYYIBPAY_SECRET_KEY:-}
+      TOYYIBPAY_CATEGORY_CODE: ${TOYYIBPAY_CATEGORY_CODE:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SEED_DEMO: ${SEED_DEMO:-0}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8601/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${KYVO_PORT:-8600}:80"
+
+volumes:
+  pgdata:
+  uploads:
