@@ -8,10 +8,14 @@ export const productInclude = {
 
 type ProductFull = Prisma.ProductGetPayload<{ include: typeof productInclude }>
 
+/** Shoppers get view-only page images; the original upload (fileUrl) stays admin-only. */
 export function coaDto(c: Prisma.CoaGetPayload<object>) {
   return {
     id: c.id,
     lotNumber: c.lotNumber,
+    documentTitle: c.documentTitle,
+    mfgDate: c.mfgDate,
+    retestDate: c.retestDate,
     variantLabel: c.variantLabel,
     purity: Number(c.purity),
     labeledAmount: c.labeledAmount,
@@ -24,8 +28,12 @@ export function coaDto(c: Prisma.CoaGetPayload<object>) {
     lab: c.lab,
     assays: c.assays,
     testedAt: c.testedAt,
-    fileUrl: c.fileUrl,
+    pages: c.pages,
   }
+}
+
+export function coaAdmin(c: Prisma.CoaGetPayload<object>) {
+  return { ...coaDto(c), fileUrl: c.fileUrl }
 }
 
 /** lowStockAt comes from settings.inventory.lowStockThreshold. */

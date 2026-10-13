@@ -157,24 +157,33 @@ model Variant {
 }
 
 model Coa {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   productId      String
-  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  lotNumber      String   @unique
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  lotNumber      String
+  /// Name of the compound on the certificate (a blend product can carry one certificate per compound).
+  documentTitle  String?
+  mfgDate        DateTime?
+  retestDate     DateTime?
   variantLabel   String?
-  purity         Decimal  @db.Decimal(5, 2)
+  purity         Decimal   @db.Decimal(5, 2)
   labeledAmount  String?
   measuredAmount String?
-  identity       String   @default("Confirmed (LC-MS)")
-  endotoxin      String   @default("Pass")
-  microbial      String   @default("Pass")
-  heavyMetals    String   @default("Pass")
-  appearance     String   @default("White lyophilized powder")
-  lab            String   @default("Independent ISO/IEC 17025 lab")
-  assays         Int      @default(6)
+  identity       String    @default("Confirmed (LC-MS)")
+  endotoxin      String    @default("Pass")
+  microbial      String    @default("Pass")
+  heavyMetals    String    @default("Pass")
+  appearance     String    @default("White lyophilized powder")
+  lab            String    @default("Independent ISO/IEC 17025 lab")
+  assays         Int       @default(6)
   testedAt       DateTime
+  /// Legacy original-file link. Never sent to shoppers.
   fileUrl        String?
-  createdAt      DateTime @default(now())
+  /// View-only certificate pages: image base paths, rendered at `${base}-{900|1700}.{avif,webp}`.
+  pages          String[]  @default([])
+  createdAt      DateTime  @default(now())
+
+  @@unique([productId, lotNumber])
 }
 
 model Order {

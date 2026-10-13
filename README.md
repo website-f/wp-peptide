@@ -12,9 +12,9 @@ Information architecture follows rebirthlabs.org; brand, colours, copy and image
 
 ## What is in the box
 
-**Storefront**: home (hero, popular compounds, 5-cell bento, about, tier staircase, 4 ways to save, COA rail, FAQ), shop with search/category/sort, product pages (size + 1/3/5/10 quantity tiers, live points estimate, rendered certificate, lot history, specs), cart drawer with tier hints and free-shipping nudge, checkout (guest or account, points redemption, discount and partner codes), order page with ToyyibPay pay/verify/retry and tracking, Build a Box (4-slot monthly subscription), Bulk orders (wholesale ladder), COA library, Membership (Insider/VIP/Founder), Points, Partner program + application, partner dashboard, customer account, contact, FAQ, policies, 21+ age gate. Dark and light themes, mobile-first.
+**Storefront**: home (hero, popular compounds, 5-cell bento, about, tier staircase, 4 ways to save, COA rail, FAQ), shop with search/category/sort, product pages (size + 1/3/5/10 quantity tiers, live points estimate, certificate summary with a view-only certificate viewer, lot history, specs), cart drawer with tier hints and free-shipping nudge, checkout (guest or account, points redemption, discount and partner codes), order page with ToyyibPay pay/verify/retry and tracking, Build a Box (4-slot monthly subscription), Bulk orders (wholesale ladder), COA library, Membership (Insider/VIP/Founder), Points, Partner program + application, partner dashboard, customer account, contact, FAQ, policies, 21+ age gate. Dark and light themes, mobile-first.
 
-**Admin** (`/admin`): dashboard (KPIs vs previous period, needs-attention queue, revenue chart, top products, low stock), orders (filters, full detail, status actions with tracking, ToyyibPay re-check), products (variants with cost/stock, image upload, lab data), COA library management, customers (tiers, points adjustments), partners (applications, commission rates, codes, commissions, payouts), finance (P&L, refunds, COGS, commissions, points liability, product margins, CSV export), Build a Box subscriptions, coupons, inbox + newsletter export, store settings (shipping, tiers, wholesale, box, partner terms, points, membership prices, payment methods).
+**Admin** (`/admin`): dashboard (KPIs vs previous period, needs-attention queue, revenue chart, top products, low stock), orders (filters, full detail, status actions with tracking, ToyyibPay re-check), products (variants with cost/stock, image upload, lab data), COA library management (upload a PDF, it is published as view-only pages), customers (tiers, points adjustments), partners (applications, commission rates, codes, commissions, payouts), finance (P&L, refunds, COGS, commissions, points liability, product margins, CSV export), Build a Box subscriptions, coupons, inbox + newsletter export, store settings (shipping, tiers, wholesale, box, partner terms, points, membership prices, payment methods).
 
 **Money rules: everything is a setting.** No price, percentage, threshold or limit is hardcoded. The pricing engine (`api/src/lib/pricing.ts`) reads Admin > Settings and each coupon record, and the shop renders its copy from the same values.
 
@@ -81,6 +81,19 @@ cd web && node scripts/optimize-images.mjs "C:/path/to/peptide-pngs"
 ```
 
 Images uploaded in the admin go through the same pipeline on the server (`api/src/lib/images.ts`) and are served with year-long immutable caching.
+
+### Certificates of analysis (view-only)
+
+Certificates are never published as PDFs. Each page is shown as an image (AVIF with WebP fallback, 900 px for phones and 1700 px for desktop and zoom) inside a viewer with no download or print button; right-click, drag, long-press save, Ctrl+S/P and printing are blocked. Screenshots cannot be prevented by any website.
+
+- Shipped certificates: page scans are pulled losslessly from the supplier PDFs and encoded by `web/scripts/optimize-coas.mjs` into `web/public/coa/<compound>/` (about 30 KB a page on phones, 55 KB on desktop, from 8 to 10 MB PDFs). `api/prisma/certificates.ts` holds the transcribed batch data and runs once (marker `coa.realDocs.v1`), replacing the placeholder lots for those products.
+  ```bash
+  pdfimages -j "Retatrutide COA.pdf" pages/Retatrutide_COA      # poppler, one JPEG per page
+  cd web && node scripts/optimize-coas.mjs path/to/pages
+  ```
+- New certificates: Admin > COA library > upload a PDF or photo. The API rasterises it with poppler (`pdftoppm`, in the api image) and stores only the page images; the original file is not kept.
+- Blends carry one certificate per compound (Reta Pro: Retatrutide + Cagrilintide). Set **Compound** on each certificate; the viewer shows one tab each.
+- Leave a result blank when the certificate does not test it; blank rows are hidden on the site.
 
 ## Live server (https://kyvomethod.com)
 

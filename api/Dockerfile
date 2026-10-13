@@ -12,7 +12,7 @@ RUN npm run build
 FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
-RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates tini && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates tini poppler-utils && rm -rf /var/lib/apt/lists/*
 # Dev deps stay installed on purpose: the entrypoint needs the prisma CLI for
 # migrations and tsx for the idempotent seed.
 COPY --from=build /app/node_modules ./node_modules

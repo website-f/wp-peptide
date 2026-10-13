@@ -1,32 +1,54 @@
-import { ArrowSquareOutIcon, CheckCircleIcon, SealCheckIcon } from '@phosphor-icons/react'
+import { CheckCircleIcon, FileTextIcon, SealCheckIcon } from '@phosphor-icons/react'
+import { Button } from '@/components/ui/button'
 import { date } from '@/lib/format'
 import type { Coa } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 function passed(v: string) {
-  return /pass|confirm|conform/i.test(v)
+  return /pass|confirm|conform|not detected/i.test(v)
 }
 
-/** A rendered certificate of analysis built from lot data (no screenshots). */
-export function CoaSheet({ coa, productName, className, compact = false }: { coa: Coa; productName: string; className?: string; compact?: boolean }) {
-  const rows: [string, string][] = [
-    ['Purity (HPLC-UV)', `${coa.purity.toFixed(2)}%`],
-    ['Identity', coa.identity],
-    ...(coa.labeledAmount ? [['Content, labeled', coa.labeledAmount] as [string, string]] : []),
-    ...(coa.measuredAmount ? [['Content, measured', coa.measuredAmount] as [string, string]] : []),
-    ['Endotoxin', coa.endotoxin],
-    ['Microbial', coa.microbial],
-    ...(!compact ? [['Heavy metals', coa.heavyMetals] as [string, string]] : []),
-    ['Appearance', coa.appearance],
-  ]
+/** 99.20 -> "99.2", 99.47 -> "99.47" (matches how certificates print purity). */
+export function pct(n: number) {
+  return String(Number(n.toFixed(2)))
+}
+
+/** Certificate summary built from the batch data. Empty values = not on the certificate, so not shown. */
+export function CoaSheet({
+  coa,
+  productName,
+  className,
+  compact = false,
+  onView,
+}: {
+  coa: Coa
+  productName: string
+  className?: string
+  compact?: boolean
+  onView?: () => void
+}) {
+  const rows = (
+    [
+      ['Purity (HPLC)', `${pct(coa.purity)}%`],
+      ['Identity', coa.identity],
+      ['Content, labeled', coa.labeledAmount],
+      ['Content, measured', coa.measuredAmount],
+      ['Endotoxin', coa.endotoxin],
+      ['Microbial', coa.microbial],
+      ['Heavy metals', compact ? '' : coa.heavyMetals],
+      ['Appearance', coa.appearance],
+    ] as [string, string | null][]
+  ).filter((r): r is [string, string] => !!r[1])
+  const title = coa.documentTitle && coa.documentTitle !== productName ? coa.documentTitle : null
   return (
     <div className={cn('rounded-xl border bg-card p-5 text-card-foreground shadow-[0_24px_60px_-30px_rgb(0_0_0/0.6)] sm:p-6', className)}>
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <p className="font-mono text-[10px] tracking-[0.22em] text-muted-foreground uppercase">Certificate of analysis</p>
           <p className="mt-1.5 font-display text-2xl leading-none font-semibold uppercase">{productName}</p>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
-            Lot {coa.lotNumber}
+          {title && <p className="mt-1 text-sm font-medium text-gold-ink">{title}</p>}
+          <p className="mt-1 font-mono text-xs break-all text-muted-foreground">
+            {coa.pages.length ? 'Batch' : 'Lot'} {coa.lotNumber}
             {coa.variantLabel ? `, ${coa.variantLabel}` : ''}
           </p>
         </div>
@@ -44,14 +66,14 @@ export function CoaSheet({ coa, productName, className, compact = false }: { coa
           </div>
         ))}
       </dl>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-[11px] text-muted-foreground">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t pt-3 text-[11px] text-muted-foreground">
         <span>
-          {coa.lab}, tested {date(coa.testedAt)}, {coa.assays} assays
+          {coa.mfgDate ? `Manufactured ${date(coa.mfgDate)}` : `${coa.lab}, tested ${date(coa.testedAt)}`}, {coa.assays} tests
         </span>
-        {coa.fileUrl && (
-          <a href={coa.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-gold-ink hover:underline">
-            Original <ArrowSquareOutIcon className="size-3" />
-          </a>
+        {onView && (
+          <Button size="sm" variant="outline" onClick={onView}>
+            <FileTextIcon /> {coa.pages.length ? 'View certificate' : 'View summary'}
+          </Button>
         )}
       </div>
     </div>

@@ -6,6 +6,7 @@
 import { PrismaClient, type OrderStatus, type Tier } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { seedAdminOnce } from './admin.js'
+import { importCertificates } from './certificates.js'
 
 const db = new PrismaClient()
 const RM = (n: number) => Math.round(n * 100)
@@ -568,5 +569,6 @@ async function seedDemo() {
 
 await seedAdminOnce(db)
 await seedCatalog()
+await importCertificates(db)
 if (process.env.SEED_DEMO === '1') await seedDemo()
 await db.$disconnect()

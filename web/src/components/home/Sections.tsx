@@ -5,7 +5,9 @@ import { Link } from 'react-router'
 import { WideImage } from '@/components/brand/ProductImage'
 import { Eyebrow, SectionTitle } from '@/components/brand/bits'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { pct } from '@/components/product/CoaSheet'
 import { Button } from '@/components/ui/button'
+import { lotWord } from '@/lib/coa'
 import { faqs } from '@/lib/content'
 import { date, money } from '@/lib/format'
 import type { Coa, Settings } from '@/lib/types'
@@ -163,7 +165,7 @@ export function CoaRail({ coas }: { coas: Coa[] }) {
   return (
     <section className="border-y bg-surface py-20 md:py-28">
       <div className="container-x flex items-end justify-between gap-6">
-        <SectionTitle sub="Recent lots and their results. Search any lot number in the library.">Every lot, on the record.</SectionTitle>
+        <SectionTitle sub="Current batches and their results. Open any certificate in the library.">Every lot, on the record.</SectionTitle>
         <div className="hidden shrink-0 gap-2 sm:flex">
           <Button variant="outline" size="icon" onClick={() => scroll(-1)} aria-label="Previous certificates">
             <CaretLeftIcon />
@@ -180,15 +182,17 @@ export function CoaRail({ coas }: { coas: Coa[] }) {
         {coas.map((c) => (
           <Link
             key={c.id}
-            to={`/coa-library?q=${encodeURIComponent(c.lotNumber)}`}
+            to={`/coa-library?q=${encodeURIComponent(c.product?.name ?? c.lotNumber)}`}
             className="group w-[78vw] max-w-[300px] shrink-0 snap-start rounded-xl border bg-card p-5 transition-colors hover:border-gold/40"
           >
             <p className="font-display text-xl font-semibold uppercase group-hover:text-gold-ink">{c.product?.name}</p>
-            <p className="font-mono text-xs text-muted-foreground">Lot {c.lotNumber}</p>
+            <p className="truncate font-mono text-xs text-muted-foreground">
+              {lotWord(c)} {c.lotNumber}
+            </p>
             <p className="mt-6 font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">HPLC purity</p>
-            <p className="display mt-1 text-4xl">{c.purity.toFixed(2)}%</p>
+            <p className="display mt-1 text-4xl">{pct(c.purity)}%</p>
             <p className="mt-4 border-t pt-3 text-[12px] text-muted-foreground">
-              Tested {date(c.testedAt)}, {c.assays} assays
+              {c.mfgDate ? `Made ${date(c.mfgDate)}` : `Tested ${date(c.testedAt)}`}, {c.assays} tests
             </p>
           </Link>
         ))}

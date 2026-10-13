@@ -1,6 +1,7 @@
 import {
   ArrowSquareOutIcon,
   CertificateIcon,
+  EyeIcon,
   CircleNotchIcon,
   FileImageIcon,
   FilePdfIcon,
@@ -16,12 +17,14 @@ import { Link, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { EmptyState, Purity } from '@/components/brand/bits'
 import { ProductImage } from '@/components/brand/ProductImage'
+import { CoaViewer } from '@/components/product/CoaViewer'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api, errorMessage } from '@/lib/api'
 import { date } from '@/lib/format'
+import type { Coa } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog, ErrorState, Field, Num, NumberInput, PageHeader, Panel, Pill, RowsSkeleton, SearchInput, TextInput } from '../components/kit'
 import type { AdminCoa, AdminProduct } from '../lib/types'
@@ -33,6 +36,9 @@ const MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 type CoaForm = {
   productId: string
   lotNumber: string
+  documentTitle: string
+  mfgDate: string
+  retestDate: string
   variantLabel: string
   purity: string
   labeledAmount: string
@@ -45,31 +51,40 @@ type CoaForm = {
   lab: string
   assays: string
   testedAt: string
+  /** Legacy original-file link (admin only). New uploads become view-only pages. */
   fileUrl: string | null
+  pages: string[]
 }
 
 /** Defaults mirror coaSchema in api/src/routes/admin/catalog.ts. */
 const blankForm = (productId = ''): CoaForm => ({
   productId,
   lotNumber: '',
+  documentTitle: '',
+  mfgDate: '',
+  retestDate: '',
   variantLabel: '',
   purity: '',
   labeledAmount: '',
   measuredAmount: '',
-  identity: 'Confirmed (LC-MS)',
-  endotoxin: 'Pass',
-  microbial: 'Pass',
-  heavyMetals: 'Pass',
-  appearance: 'White lyophilized powder',
-  lab: 'Independent ISO/IEC 17025 lab',
-  assays: '6',
+  identity: 'Conforms (HPLC, MS)',
+  endotoxin: 'Conforms',
+  microbial: 'Conforms',
+  heavyMetals: '',
+  appearance: 'White powder',
+  lab: 'Manufacturer batch QC',
+  assays: '13',
   testedAt: isoDay(new Date()),
   fileUrl: null,
+  pages: [],
 })
 
 const fromCoa = (c: AdminCoa): CoaForm => ({
   productId: c.product.id,
   lotNumber: c.lotNumber,
+  documentTitle: c.documentTitle ?? '',
+  mfgDate: c.mfgDate?.slice(0, 10) ?? '',
+  retestDate: c.retestDate?.slice(0, 10) ?? '',
   variantLabel: c.variantLabel ?? '',
   purity: String(c.purity),
   labeledAmount: c.labeledAmount ?? '',
@@ -84,6 +99,7 @@ const fromCoa = (c: AdminCoa): CoaForm => ({
   // Stored as midnight UTC, so the date part is the tested day.
   testedAt: c.testedAt.slice(0, 10),
   fileUrl: c.fileUrl,
+  pages: c.pages,
 })
 
 const orNull = (s: string) => (s.trim() === '' ? null : s.trim())
@@ -96,7 +112,8 @@ function validate(f: CoaForm) {
   if (f.purity.trim() === '' || !Number.isFinite(p) || p < 0 || p > 100) e.purity = 'Enter a purity between 0 and 100'
   const a = Number(f.assays)
   if (!Number.isInteger(a) || a < 1 || a > 30) e.assays = 'Use a whole number from 1 to 30'
-  if (!f.testedAt) e.testedAt = 'Pick the test date'
+  if (!f.testedAt) e.testedAt = 'Pick the report date'
+  if (f.mfgDate && f.retestDate && f.retestDate <= f.mfgDate) e.retestDate = 'The retest date comes after the manufacture date'
   return e
 }
 
@@ -104,6 +121,9 @@ function toPayload(f: CoaForm) {
   return {
     productId: f.productId,
     lotNumber: f.lotNumber.trim(),
+    documentTitle: orNull(f.documentTitle),
+    mfgDate: f.mfgDate || null,
+    retestDate: f.retestDate || null,
     variantLabel: orNull(f.variantLabel),
     purity: Number(f.purity),
     labeledAmount: orNull(f.labeledAmount),
@@ -117,6 +137,7 @@ function toPayload(f: CoaForm) {
     assays: Number(f.assays),
     testedAt: f.testedAt,
     fileUrl: f.fileUrl,
+    pages: f.pages,
   }
 }
 
@@ -130,6 +151,9 @@ function lotHint(name: string | undefined) {
 
 const isPdf = (url: string) => url.toLowerCase().endsWith('.pdf')
 
+/** The storefront viewer's shape, from a saved row. */
+const asViewerDoc = (c: AdminCoa): Coa => ({ ...c, product: undefined })
+
 type DialogState = { open: boolean; coa: AdminCoa | null; productId?: string; key: number }
 
 export default function Coas() {
@@ -139,6 +163,7 @@ export default function Coas() {
   const [q, setQ] = useState('')
   const [dialog, setDialog] = useState<DialogState>({ open: false, coa: null, key: 0 })
   const [deleting, setDeleting] = useState<AdminCoa | null>(null)
+  const [preview, setPreview] = useState<AdminCoa | null>(null)
 
   const coasQuery = useQuery({ queryKey: ['admin', 'coas'], queryFn: () => api.get<AdminCoa[]>('/api/admin/coas') })
   const productsQuery = useQuery({ queryKey: ['admin', 'products'], queryFn: () => api.get<AdminProduct[]>('/api/admin/products') })
@@ -311,13 +336,14 @@ export default function Coas() {
                       <Purity value={c.purity} className="shrink-0" />
                     </div>
                     <Num className="block truncate text-sm">{c.lotNumber}</Num>
+                    {c.documentTitle && <p className="truncate text-xs text-gold-ink">{c.documentTitle}</p>}
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
                       {c.variantLabel ? `${c.variantLabel}, ` : ''}tested {date(c.testedAt)}
                     </p>
                   </div>
                 </button>
                 <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2.5">
-                  <FileLink url={c.fileUrl} />
+                  <PagesLink coa={c} onPreview={() => setPreview(c)} />
                   <div className="flex gap-1">
                     <Button size="sm" variant="ghost" onClick={() => openEdit(c)}>
                       <PencilSimpleIcon />
@@ -338,12 +364,12 @@ export default function Coas() {
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className={head}>Product</TableHead>
-                  <TableHead className={head}>Lot number</TableHead>
+                  <TableHead className={head}>Batch</TableHead>
                   <TableHead className={head}>Size</TableHead>
                   <TableHead className={cn(head, 'text-right')}>Purity</TableHead>
                   <TableHead className={head}>Tested</TableHead>
                   <TableHead className={cn(head, 'hidden xl:table-cell')}>Lab</TableHead>
-                  <TableHead className={head}>File</TableHead>
+                  <TableHead className={head}>Certificate</TableHead>
                   <TableHead className="w-20">
                     <span className="sr-only">Actions</span>
                   </TableHead>
@@ -366,6 +392,7 @@ export default function Coas() {
                     </TableCell>
                     <TableCell>
                       <Num className="text-sm whitespace-nowrap">{c.lotNumber}</Num>
+                      {c.documentTitle && <span className="block text-xs text-gold-ink">{c.documentTitle}</span>}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{c.variantLabel || <span className="text-muted-foreground">All sizes</span>}</TableCell>
                     <TableCell className="text-right">
@@ -378,7 +405,7 @@ export default function Coas() {
                       <span className="block truncate text-muted-foreground">{c.lab}</span>
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <FileLink url={c.fileUrl} />
+                      <PagesLink coa={c} onPreview={() => setPreview(c)} />
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-0.5">
@@ -413,6 +440,13 @@ export default function Coas() {
         onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
       />
 
+      <CoaViewer
+        docs={preview ? [asViewerDoc(preview)] : []}
+        productName={preview?.product.name ?? ''}
+        open={!!preview}
+        onOpenChange={(o) => !o && setPreview(null)}
+      />
+
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(o) => !o && setDeleting(null)}
@@ -429,19 +463,35 @@ export default function Coas() {
   )
 }
 
-function FileLink({ url }: { url: string | null }) {
-  if (!url) return <span className="text-xs text-muted-foreground">No file</span>
-  const Icon = isPdf(url) ? FilePdfIcon : FileImageIcon
+function PagesLink({ coa, onPreview }: { coa: AdminCoa; onPreview: () => void }) {
+  if (coa.pages.length)
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onPreview()
+        }}
+        className="inline-flex items-center gap-1.5 rounded-md text-sm whitespace-nowrap text-gold-ink hover:underline"
+      >
+        <EyeIcon className="size-4" />
+        {coa.pages.length} {coa.pages.length === 1 ? 'page' : 'pages'}
+      </button>
+    )
+  if (!coa.fileUrl) return <span className="text-xs whitespace-nowrap text-muted-foreground">Summary only</span>
+  // Older uploads kept the original file, which customers no longer see. Re-upload to publish pages.
+  const Icon = isPdf(coa.fileUrl) ? FilePdfIcon : FileImageIcon
   return (
     <a
-      href={url}
+      href={coa.fileUrl}
       target="_blank"
       rel="noreferrer"
       onClick={(e) => e.stopPropagation()}
-      className="inline-flex items-center gap-1.5 rounded-md text-sm text-gold-ink hover:underline"
+      className="inline-flex items-center gap-1.5 rounded-md text-sm whitespace-nowrap text-muted-foreground hover:underline"
+      title="Not shown to customers. Upload it again to publish view-only pages."
     >
       <Icon className="size-4" />
-      {isPdf(url) ? 'PDF' : 'Image'}
+      Old file
     </a>
   )
 }
@@ -472,6 +522,7 @@ function CoaDialog({
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [serverError, setServerError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -530,9 +581,9 @@ function CoaDialog({
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const r = await api.post<{ fileUrl: string }>('/api/admin/uploads/certificate', fd)
-      set({ fileUrl: r.fileUrl })
-      toast.success('File uploaded')
+      const r = await api.post<{ pages: string[] }>('/api/admin/uploads/certificate', fd)
+      set({ pages: r.pages, fileUrl: null })
+      toast.success(r.pages.length === 1 ? 'Certificate uploaded (1 page)' : `Certificate uploaded (${r.pages.length} pages)`)
     } catch (err) {
       toast.error(errorMessage(err))
     } finally {
@@ -586,7 +637,7 @@ function CoaDialog({
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Lot number" htmlFor="coa-lot" error={errors.lotNumber} hint="The batch code printed on the vial label.">
+                <Field label="Batch number" htmlFor="coa-lot" error={errors.lotNumber} hint="The batch code printed on the certificate and vial label.">
                   <TextInput
                     id="coa-lot"
                     value={form.lotNumber}
@@ -599,7 +650,34 @@ function CoaDialog({
                     aria-invalid={!!errors.lotNumber}
                   />
                 </Field>
-                <Field label="Tested on" htmlFor="coa-date" error={errors.testedAt}>
+                <Field
+                  label="Compound"
+                  htmlFor="coa-title"
+                  optional
+                  hint="For blends, add one certificate per compound (e.g. Retatrutide and Cagrilintide)."
+                >
+                  <TextInput
+                    id="coa-title"
+                    value={form.documentTitle}
+                    onChange={(e) => set({ documentTitle: e.target.value })}
+                    placeholder={product?.name ?? 'As printed on the certificate'}
+                    maxLength={80}
+                  />
+                </Field>
+                <Field label="Manufactured" htmlFor="coa-mfg" optional>
+                  <TextInput id="coa-mfg" type="date" value={form.mfgDate} onChange={(e) => set({ mfgDate: e.target.value })} className="font-mono" />
+                </Field>
+                <Field label="Retest by" htmlFor="coa-retest" optional error={errors.retestDate}>
+                  <TextInput
+                    id="coa-retest"
+                    type="date"
+                    value={form.retestDate}
+                    onChange={(e) => set({ retestDate: e.target.value })}
+                    className="font-mono"
+                    aria-invalid={!!errors.retestDate}
+                  />
+                </Field>
+                <Field label="Report date" htmlFor="coa-date" error={errors.testedAt}>
                   <TextInput
                     id="coa-date"
                     type="date"
@@ -724,7 +802,7 @@ function CoaDialog({
 
               <div className="grid gap-1.5">
                 <p className="text-[13px] font-medium">
-                  Certificate file <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+                  Certificate <span className="text-xs font-normal text-muted-foreground">(PDF or photo, up to 15 MB)</span>
                 </p>
                 <input
                   ref={fileInput}
@@ -740,24 +818,26 @@ function CoaDialog({
                 {uploading ? (
                   <div className="flex h-14 items-center gap-2 rounded-md border bg-surface px-3 text-sm text-muted-foreground" role="status">
                     <CircleNotchIcon className="size-4 animate-spin" />
-                    Uploading...
+                    Uploading and preparing pages...
                   </div>
-                ) : form.fileUrl ? (
-                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-md border bg-surface px-3 py-2.5">
-                    <a
-                      href={form.fileUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex min-w-0 items-center gap-2 text-sm text-gold-ink hover:underline"
-                    >
-                      {isPdf(form.fileUrl) ? <FilePdfIcon className="size-5 shrink-0" /> : <FileImageIcon className="size-5 shrink-0" />}
-                      <span className="truncate">{isPdf(form.fileUrl) ? 'View PDF' : 'View image'}</span>
-                    </a>
+                ) : form.pages.length ? (
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-md border bg-surface p-2.5">
+                    <button type="button" onClick={() => setPreviewing(true)} className="flex min-w-0 items-center gap-3 text-left">
+                      <span className="flex -space-x-4">
+                        {form.pages.slice(0, 3).map((b) => (
+                          <img key={b} src={`${b}-900.webp`} alt="" className="h-14 w-10 rounded-sm border bg-white object-cover object-top shadow-sm" />
+                        ))}
+                      </span>
+                      <span className="min-w-0 text-sm">
+                        <span className="block text-gold-ink hover:underline">Preview as customers see it</span>
+                        <span className="block text-xs text-muted-foreground">{form.pages.length === 1 ? '1 page' : `${form.pages.length} pages`}, view-only</span>
+                      </span>
+                    </button>
                     <div className="flex gap-1">
                       <Button type="button" size="sm" variant="ghost" onClick={() => fileInput.current?.click()}>
                         Replace
                       </Button>
-                      <Button type="button" size="sm" variant="ghost" className="hover:text-destructive" onClick={() => set({ fileUrl: null })}>
+                      <Button type="button" size="sm" variant="ghost" className="hover:text-destructive" onClick={() => set({ pages: [] })}>
                         Remove
                       </Button>
                     </div>
@@ -776,10 +856,22 @@ function CoaDialog({
                     className="flex min-h-14 items-center justify-center gap-2 rounded-md border border-dashed bg-surface/50 px-3 py-3 text-sm text-muted-foreground transition-colors hover:border-gold/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <UploadSimpleIcon className="size-4" />
-                    Upload the lab report (PDF or photo, up to 15 MB)
+                    Upload the certificate
                   </button>
                 )}
-                <p className="text-xs leading-snug text-muted-foreground">Customers can open this file from the product page.</p>
+                {!form.pages.length && form.fileUrl && (
+                  <p className="text-xs leading-snug text-muted-foreground">
+                    This record has an older file that customers cannot see.{' '}
+                    <a href={form.fileUrl} target="_blank" rel="noreferrer" className="text-gold-ink underline">
+                      Open it
+                    </a>{' '}
+                    and upload it again to publish it.
+                  </p>
+                )}
+                <p className="text-xs leading-snug text-muted-foreground">
+                  PDFs become compressed page images. Customers view them on the product page and in the COA library, with no download or print button.
+                  Leave a result above blank if the certificate does not test it; blank rows are hidden.
+                </p>
               </div>
             </Section>
           </div>
@@ -795,6 +887,20 @@ function CoaDialog({
           </DialogFooter>
         </form>
       </DialogContent>
+      <CoaViewer
+        docs={[
+          {
+            ...toPayload(form),
+            id: editing?.id ?? 'draft',
+            assays: Number(form.assays) || 0,
+            purity: Number(form.purity) || 0,
+            testedAt: form.testedAt,
+          } as Coa,
+        ]}
+        productName={product?.name ?? 'Certificate'}
+        open={previewing}
+        onOpenChange={setPreviewing}
+      />
     </Dialog>
   )
 }

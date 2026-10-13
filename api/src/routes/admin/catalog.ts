@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '../../lib/db.js'
 import { badRequest, notFound, parse } from '../../lib/http.js'
 import { saveCertificate, saveProductImage } from '../../lib/images.js'
-import { coaDto, productAdmin, productInclude } from '../../lib/serialize.js'
+import { coaAdmin, productAdmin, productInclude } from '../../lib/serialize.js'
 
 const slugRe = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
@@ -43,11 +43,15 @@ const productSchema = z.object({
 const coaSchema = z.object({
   productId: z.string(),
   lotNumber: z.string().trim().min(1).max(60),
+  documentTitle: z.string().trim().max(80).nullable().optional(),
+  mfgDate: z.coerce.date().nullable().optional(),
+  retestDate: z.coerce.date().nullable().optional(),
   variantLabel: z.string().max(40).nullable().optional(),
   purity: z.number().min(0).max(100),
   labeledAmount: z.string().max(40).nullable().optional(),
   measuredAmount: z.string().max(40).nullable().optional(),
   identity: z.string().max(80).default('Confirmed (LC-MS)'),
+  // Empty means "not on this certificate"; the storefront hides those rows.
   endotoxin: z.string().max(40).default('Pass'),
   microbial: z.string().max(40).default('Pass'),
   heavyMetals: z.string().max(40).default('Pass'),
@@ -56,6 +60,7 @@ const coaSchema = z.object({
   assays: z.number().int().min(1).max(30).default(6),
   testedAt: z.coerce.date(),
   fileUrl: z.string().max(300).nullable().optional(),
+  pages: z.array(z.string().regex(/^\/(uploads\/coa|coa)\/[\w/-]+$/, 'Invalid page path')).max(20).default([]),
 })
 
 export async function adminCatalogRoutes(app: FastifyInstance) {
@@ -147,15 +152,15 @@ export async function adminCatalogRoutes(app: FastifyInstance) {
 
   app.get('/coas', async () => {
     const rows = await db.coa.findMany({ orderBy: { testedAt: 'desc' }, include: { product: { select: { id: true, name: true, image: true } } } })
-    return rows.map((c) => ({ ...coaDto(c), product: c.product }))
+    return rows.map((c) => ({ ...coaAdmin(c), product: c.product }))
   })
   app.post('/coas', async (req) => {
     const c = await db.coa.create({ data: parse(coaSchema, req.body) })
-    return coaDto(c)
+    return coaAdmin(c)
   })
   app.put('/coas/:id', async (req) => {
     const c = await db.coa.update({ where: { id: (req.params as { id: string }).id }, data: parse(coaSchema, req.body) })
-    return coaDto(c)
+    return coaAdmin(c)
   })
   app.delete('/coas/:id', async (req) => {
     await db.coa.delete({ where: { id: (req.params as { id: string }).id } })
@@ -171,6 +176,6 @@ export async function adminCatalogRoutes(app: FastifyInstance) {
   app.post('/uploads/certificate', async (req) => {
     const file = await req.file()
     if (!file) throw badRequest('Choose a file to upload')
-    return { fileUrl: await saveCertificate(await file.toBuffer(), file.mimetype) }
+    return { pages: await saveCertificate(await file.toBuffer(), file.mimetype) }
   })
 }

@@ -1,29 +1,30 @@
-import { CheckCircleIcon, MagnifyingGlassIcon, SealCheckIcon } from '@phosphor-icons/react'
-import { useEffect, useState } from 'react'
+import { CheckCircleIcon, FileTextIcon, MagnifyingGlassIcon, SealCheckIcon } from '@phosphor-icons/react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { ProductImage } from '@/components/brand/ProductImage'
 import { EmptyState, PageHeader } from '@/components/brand/bits'
 import { ResearchDisclaimer } from '@/components/layout/SiteFooter'
-import { CoaSheet } from '@/components/product/CoaSheet'
+import { pct } from '@/components/product/CoaSheet'
+import { CoaViewer, docLabel } from '@/components/product/CoaViewer'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { date } from '@/lib/format'
+import { groupByProduct, lotWord, viewerOrder } from '@/lib/coa'
+import { date, plural } from '@/lib/format'
 import { useCoas } from '@/lib/queries'
 import type { Coa } from '@/lib/types'
 
 const GUIDE = [
-  { k: 'Purity', d: 'HPLC-UV separates the sample and reports the share that is the target peptide. We release lots at 99% or higher.' },
-  { k: 'Identity', d: 'LC-MS confirms the molecular mass matches the expected sequence, so the vial contains what the label says.' },
-  { k: 'Labeled vs measured', d: 'The lab weighs the actual peptide content in the vial and compares it with the label. Overfill is normal.' },
-  { k: 'Safety screens', d: 'Endotoxin, microbial and heavy-metal panels must all pass before a lot is released for sale.' },
+  { k: 'Purity (HPLC)', d: 'HPLC separates the sample and reports the share that is the target compound. Every batch we list is above 99%.' },
+  { k: 'Identity', d: 'Mass spectrometry, and on most certificates HPLC retention and amino-acid analysis, confirm the compound matches its expected structure.' },
+  { k: 'Batch and dates', d: 'The batch number ties the certificate to the material in your vial. The manufacture and retest dates show how fresh the batch is.' },
+  { k: 'Safety screens', d: 'Endotoxin, microbial and heavy-metal results are shown where the certificate includes them. Open the certificate for the full panel.' },
 ]
 
 export default function CoaLibrary() {
   const [params, setParams] = useSearchParams()
   const [q, setQ] = useState(params.get('q') ?? '')
   const [debounced, setDebounced] = useState(q)
-  const [open, setOpen] = useState<Coa | null>(null)
+  const [open, setOpen] = useState<{ docs: Coa[]; name: string } | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -34,10 +35,18 @@ export default function CoaLibrary() {
   }, [q, setParams])
 
   const coas = useCoas(debounced || undefined)
+  const groups = useMemo(
+    () =>
+      groupByProduct(coas.data ?? []).map((g) => {
+        const { current, history } = viewerOrder(g.docs, g.product.name)
+        return { ...g, current, docs: [...current, ...history] }
+      }),
+    [coas.data],
+  )
 
   return (
     <>
-      <PageHeader title="COA library" intro="Every KYVO lot is tested by an independent ISO/IEC 17025 laboratory before it ships. Search a compound or the lot number printed on your vial.">
+      <PageHeader title="COA library" intro="Every batch we sell has its certificate of analysis here, view-only and in full. Search a compound or the batch number printed on your vial.">
         <div className="relative mt-8 max-w-xl">
           <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground" />
           <label htmlFor="coa-search" className="sr-only">
@@ -48,7 +57,7 @@ export default function CoaLibrary() {
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Try the short name, like BPC or NAD, or a lot number"
+            placeholder="Try a short name like BPC or NAD, or a batch number"
             className="h-14 pl-12 text-base"
           />
         </div>
@@ -61,53 +70,14 @@ export default function CoaLibrary() {
               <div key={i} className="h-64 animate-pulse rounded-xl bg-muted" />
             ))}
           </div>
-        ) : coas.data && coas.data.length > 0 ? (
+        ) : groups.length > 0 ? (
           <>
-            <p className="mb-5 font-mono text-xs text-muted-foreground">{coas.data.length} certificates</p>
+            <p className="mb-5 font-mono text-xs text-muted-foreground">
+              {plural(coas.data?.length ?? 0, 'certificate')} across {plural(groups.length, 'product')}
+            </p>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {coas.data.map((c) => (
-                <article key={c.id} className="flex flex-col rounded-xl border bg-card p-5">
-                  <div className="flex items-center gap-3">
-                    <ProductImage src={c.product?.image} alt={c.product?.name ?? ''} sizes="48px" className="size-12 shrink-0 rounded-lg" />
-                    <div className="min-w-0">
-                      <Link to={`/shop/${c.product?.slug}`} className="block truncate font-display text-xl leading-none font-semibold uppercase hover:text-gold-ink">
-                        {c.product?.name}
-                      </Link>
-                      <p className="mt-1 font-mono text-[12px] text-muted-foreground">Lot {c.lotNumber}</p>
-                    </div>
-                  </div>
-                  <div className="mt-5 flex items-end justify-between gap-3">
-                    <div>
-                      <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">HPLC purity</p>
-                      <p className="display mt-1 text-5xl">{c.purity.toFixed(2)}%</p>
-                    </div>
-                    {c.labeledAmount && c.measuredAmount && (
-                      <div className="text-right font-mono text-[12px]">
-                        <p className="text-muted-foreground">Labeled {c.labeledAmount}</p>
-                        <p>Measured {c.measuredAmount}</p>
-                      </div>
-                    )}
-                  </div>
-                  <ul className="mt-4 flex flex-wrap gap-1.5">
-                    {[
-                      ['Identity', c.identity],
-                      ['Endotoxin', c.endotoxin],
-                      ['Microbial', c.microbial],
-                    ].map(([k, v]) => (
-                      <li key={k} className="inline-flex items-center gap-1 rounded-md bg-surface px-2 py-1 text-[11.5px]">
-                        <CheckCircleIcon weight="fill" className="size-3.5 text-success" /> {k} {/pass|confirm/i.test(v) ? 'passed' : v}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="mt-auto flex items-center justify-between gap-3 border-t pt-4 text-[12px] text-muted-foreground">
-                    <span>
-                      Tested {date(c.testedAt)}, {c.assays} assays
-                    </span>
-                    <Button size="sm" variant="outline" onClick={() => setOpen(c)}>
-                      View certificate
-                    </Button>
-                  </div>
-                </article>
+              {groups.map((g) => (
+                <CoaCard key={g.product.slug} product={g.product} docs={g.docs} current={g.current} onView={() => setOpen({ docs: g.docs, name: g.product.name })} />
               ))}
             </div>
           </>
@@ -139,13 +109,73 @@ export default function CoaLibrary() {
         </div>
       </section>
 
-      <Dialog open={!!open} onOpenChange={(o) => !o && setOpen(null)}>
-        <DialogContent className="max-w-[calc(100%-2rem)] border-0 bg-transparent p-0 shadow-none sm:max-w-lg">
-          <DialogTitle className="sr-only">Certificate for lot {open?.lotNumber}</DialogTitle>
-          {open && <CoaSheet coa={open} productName={open.product?.name ?? ''} />}
-        </DialogContent>
-      </Dialog>
+      <CoaViewer docs={open?.docs ?? []} productName={open?.name ?? ''} open={!!open} onOpenChange={(o) => !o && setOpen(null)} />
       <ResearchDisclaimer />
     </>
+  )
+}
+
+function CoaCard({ product, docs, current, onView }: { product: NonNullable<Coa['product']>; docs: Coa[]; current: Coa[]; onView: () => void }) {
+  const lead = current[0]
+  const checks = [
+    ['Identity', lead.identity],
+    ['Endotoxin', lead.endotoxin],
+    ['Microbial', lead.microbial],
+  ].filter(([, v]) => v)
+  return (
+    <article className="flex flex-col rounded-xl border bg-card p-5">
+      <div className="flex items-center gap-3">
+        <ProductImage src={product.image} alt={product.name} sizes="48px" className="size-12 shrink-0 rounded-lg" />
+        <div className="min-w-0">
+          <Link to={`/shop/${product.slug}`} className="block truncate font-display text-xl leading-none font-semibold uppercase hover:text-gold-ink">
+            {product.name}
+          </Link>
+          <p className="mt-1 truncate font-mono text-[12px] text-muted-foreground">
+            {current.length > 1 ? `${current.length} certificates, one per compound` : `${lotWord(lead)} ${lead.lotNumber}`}
+          </p>
+        </div>
+      </div>
+      {current.length > 1 ? (
+        <ul className="mt-5 grid gap-2">
+          {current.map((d) => (
+            <li key={d.id} className="flex items-baseline justify-between gap-3 rounded-lg bg-surface px-3 py-2">
+              <span className="min-w-0">
+                <span className="block truncate text-[13.5px] font-medium">{docLabel(d)}</span>
+                <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                  {lotWord(d)} {d.lotNumber}
+                </span>
+              </span>
+              <span className="shrink-0 font-mono text-lg text-gold-ink">{pct(d.purity)}%</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="mt-5 flex items-end justify-between gap-3">
+          <div>
+            <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">HPLC purity</p>
+            <p className="display mt-1 text-5xl">{pct(lead.purity)}%</p>
+          </div>
+          {lead.labeledAmount && lead.measuredAmount && (
+            <div className="text-right font-mono text-[12px]">
+              <p className="text-muted-foreground">Labeled {lead.labeledAmount}</p>
+              <p>Measured {lead.measuredAmount}</p>
+            </div>
+          )}
+        </div>
+      )}
+      <ul className="mt-4 flex flex-wrap gap-1.5">
+        {checks.map(([k, v]) => (
+          <li key={k} className="inline-flex items-center gap-1 rounded-md bg-surface px-2 py-1 text-[11.5px]">
+            <CheckCircleIcon weight="fill" className="size-3.5 text-success" /> {k} {/pass|confirm|conform/i.test(v) ? 'passed' : v}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-auto flex items-center justify-between gap-3 border-t pt-4 text-[12px] text-muted-foreground">
+        <span>{lead.mfgDate ? `Made ${date(lead.mfgDate)}` : `Tested ${date(lead.testedAt)}`}</span>
+        <Button size="sm" variant="outline" onClick={onView}>
+          <FileTextIcon /> {docs.length > 1 ? `View ${docs.length} certificates` : 'View certificate'}
+        </Button>
+      </div>
+    </article>
   )
 }

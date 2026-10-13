@@ -6,9 +6,11 @@ import { ProductImage } from '@/components/brand/ProductImage'
 import { EmptyState, Purity } from '@/components/brand/bits'
 import { QtyStepper } from '@/components/layout/CartDrawer'
 import { ResearchDisclaimer } from '@/components/layout/SiteFooter'
-import { CoaSheet } from '@/components/product/CoaSheet'
+import { CoaSheet, pct as purityText } from '@/components/product/CoaSheet'
+import { CoaViewer } from '@/components/product/CoaViewer'
 import { ProductCard, SizeChips } from '@/components/product/ProductCard'
 import { Button } from '@/components/ui/button'
+import { lotWord, viewerOrder } from '@/lib/coa'
 import { useCart } from '@/lib/cart'
 import { date, money, num } from '@/lib/format'
 import { useMe, useProduct, useSettings } from '@/lib/queries'
@@ -25,6 +27,7 @@ export default function ProductPage() {
   const [variantId, setVariantId] = useState('')
   const [qty, setQty] = useState(1)
   const [shot, setShot] = useState(0)
+  const [viewer, setViewer] = useState<number | null>(null)
 
   useEffect(() => {
     if (product) {
@@ -64,6 +67,9 @@ export default function ProductPage() {
 
   const images = [product.image, ...product.gallery].filter(Boolean) as string[]
   const latest = product.coas[0]
+  const { current, history } = viewerOrder(product.coas, product.name)
+  // Viewer tabs: today's certificates first, then older batches.
+  const viewerDocs = [...current, ...history]
   const specs = [
     ['CAS number', product.casNumber],
     ['Molecular formula', product.molecularFormula],
@@ -113,7 +119,7 @@ export default function ProductPage() {
           <p className="mt-2 text-muted-foreground">{product.tagline}</p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <Purity value={product.purity} />
-            <span className="text-[13px] text-muted-foreground">HPLC verified{latest ? `, lot ${latest.lotNumber}` : ''}</span>
+            <span className="text-[13px] text-muted-foreground">HPLC verified{latest ? `, ${lotWord(latest).toLowerCase()} ${latest.lotNumber}` : ''}</span>
           </div>
 
           <p className="mt-6 font-mono text-3xl font-medium tabular-nums">{v ? money(v.priceCents) : ''}</p>
@@ -231,21 +237,35 @@ export default function ProductPage() {
             <h2 className="display text-4xl">Certificate of analysis</h2>
             {latest ? (
               <>
-                <CoaSheet coa={latest} productName={product.name} className="mt-5" />
-                {product.coas.length > 1 && (
+                <div className="mt-5 grid gap-4">
+                  {current.map((c, i) => (
+                    <CoaSheet key={c.id} coa={c} productName={product.name} onView={() => setViewer(i)} />
+                  ))}
+                </div>
+                {history.length > 0 && (
                   <div className="mt-8">
                     <h3 className="font-display text-2xl font-semibold uppercase">Lot history</h3>
                     <ul className="mt-3 divide-y rounded-xl border">
-                      {product.coas.map((c) => (
-                        <li key={c.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-3 text-[13px]">
-                          <span className="font-mono">{c.lotNumber}</span>
-                          <span className="text-muted-foreground">{date(c.testedAt)}</span>
-                          <span className="font-mono text-gold-ink">{c.purity.toFixed(2)}%</span>
+                      {history.map((c) => (
+                        <li key={c.id}>
+                          <button
+                            type="button"
+                            onClick={() => setViewer(current.length + history.indexOf(c))}
+                            className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-3 text-left text-[13px] transition-colors hover:bg-muted/60"
+                          >
+                            <span className="truncate font-mono">
+                              {c.documentTitle ? `${c.documentTitle}, ` : ''}
+                              {c.lotNumber}
+                            </span>
+                            <span className="text-muted-foreground">{date(c.mfgDate ?? c.testedAt)}</span>
+                            <span className="font-mono text-gold-ink">{purityText(c.purity)}%</span>
+                          </button>
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
+                <CoaViewer docs={viewerDocs} productName={product.name} open={viewer !== null} initial={viewer ?? 0} onOpenChange={(o) => !o && setViewer(null)} />
               </>
             ) : (
               <p className="mt-5 text-muted-foreground">The certificate for the current lot is being finalised. Contact us for the latest results.</p>

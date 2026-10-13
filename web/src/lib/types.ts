@@ -84,6 +84,10 @@ export interface ProductCard {
 export interface Coa {
   id: string
   lotNumber: string
+  /** Compound named on the certificate; blends carry one certificate per compound. */
+  documentTitle: string | null
+  mfgDate: string | null
+  retestDate: string | null
   variantLabel: string | null
   purity: number
   labeledAmount: string | null
@@ -96,7 +100,10 @@ export interface Coa {
   lab: string
   assays: number
   testedAt: string
-  fileUrl: string | null
+  /** View-only page image bases, rendered at `${base}-{900|1700}.avif|webp`. */
+  pages: string[]
+  /** Admin only. */
+  fileUrl?: string | null
   product?: { name: string; slug: string; image: string | null }
 }
 

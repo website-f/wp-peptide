@@ -171,6 +171,10 @@ export interface AdminVariant {
 export interface CoaDto {
   id: string
   lotNumber: string
+  documentTitle: string | null
+  mfgDate: string | null
+  retestDate: string | null
+  pages: string[]
   variantLabel: string | null
   purity: number
   labeledAmount: string | null

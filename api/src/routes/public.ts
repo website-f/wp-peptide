@@ -65,13 +65,21 @@ export async function publicRoutes(app: FastifyInstance) {
       where: {
         product: { status: 'ACTIVE' },
         ...(q
-          ? { OR: [{ lotNumber: { contains: q, mode: 'insensitive' } }, { product: { name: { contains: q, mode: 'insensitive' } } }] }
+          ? {
+              OR: [
+                { lotNumber: { contains: q, mode: 'insensitive' } },
+                { documentTitle: { contains: q, mode: 'insensitive' } },
+                { product: { name: { contains: q, mode: 'insensitive' } } },
+              ],
+            }
           : {}),
       },
       orderBy: { testedAt: 'desc' },
       include: { product: { select: { name: true, slug: true, image: true } } },
       take: 200,
     })
+    // Full certificates (with pages) lead; Array#sort is stable, so newest-first holds within each group.
+    coas.sort((a, b) => Number(b.pages.length > 0) - Number(a.pages.length > 0))
     return coas.map((c) => ({ ...coaDto(c), product: c.product }))
   })
 

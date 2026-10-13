@@ -234,3 +234,10 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Certificates are view-only: printing the page leaves the certificate pages blank. */
+@media print {
+  [data-coa-pages] {
+    visibility: hidden !important;
+  }
+}
