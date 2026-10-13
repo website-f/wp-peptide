@@ -27,9 +27,16 @@ export const ORDER_STATUS: Record<OrderStatus, { label: string; tone: Tone; help
 export const KIND_LABEL: Record<OrderKind, string> = {
   STANDARD: 'Standard',
   BOX: 'Build a Box',
-  WHOLESALE: 'Wholesale',
+  WHOLESALE: 'Bulk',
   MEMBERSHIP: 'Membership',
 }
+
+/** Order kinds the panel may show. Membership orders only exist as a filter when that add-on is licensed. */
+export const orderKinds = (membershipLicensed: boolean): OrderKind[] =>
+  (Object.keys(KIND_LABEL) as OrderKind[]).filter((k) => membershipLicensed || k !== 'MEMBERSHIP')
+
+/** Label for an order kind. Without the membership licence, old membership orders read as "Other". */
+export const kindLabel = (k: OrderKind, membershipLicensed: boolean) => (k === 'MEMBERSHIP' && !membershipLicensed ? 'Other' : (KIND_LABEL[k] ?? k))
 
 export const TIER_TONE: Record<Tier, Tone> = { MEMBER: 'muted', INSIDER: 'neutral', VIP: 'gold', FOUNDER: 'gold' }
 export const TIER_LABEL: Record<Tier, string> = { MEMBER: 'Member', INSIDER: 'Insider', VIP: 'VIP', FOUNDER: 'Founder' }

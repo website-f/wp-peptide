@@ -74,6 +74,7 @@ enum PayoutStatus {
 enum CouponType {
   PERCENT
   FIXED
+  FREE_SHIPPING
 }
 
 enum SubscriptionStatus {
@@ -202,6 +203,8 @@ model Order {
   totalCents          Int
   costCents           Int           @default(0)
   couponCode          String?
+  /// True when this order consumed one use of a store coupon (released again on cancel/refund).
+  couponCounted       Boolean       @default(false)
   affiliateId         String?
   affiliate           Affiliate?    @relation(fields: [affiliateId], references: [id], onDelete: SetNull)
   pointsRedeemed      Int           @default(0)
@@ -257,17 +260,32 @@ model OrderEvent {
 }
 
 model Coupon {
-  id          String     @id @default(cuid())
-  code        String     @unique
-  type        CouponType @default(PERCENT)
-  value       Int
-  minSubtotal Int        @default(0)
-  maxUses     Int?
-  uses        Int        @default(0)
-  expiresAt   DateTime?
-  active      Boolean    @default(true)
-  description String?
-  createdAt   DateTime   @default(now())
+  id                 String     @id @default(cuid())
+  code               String     @unique
+  type               CouponType @default(PERCENT)
+  value              Int
+  minSubtotal        Int        @default(0)
+  /// Cap on the discount a PERCENT code can give (cents). Null = no cap.
+  maxDiscountCents   Int?
+  /// Total redemptions across all customers. Null = unlimited.
+  maxUses            Int?
+  /// Redemptions per customer (matched by account or email). Null = unlimited.
+  maxUsesPerCustomer Int?
+  uses               Int        @default(0)
+  startsAt           DateTime?
+  expiresAt          DateTime?
+  active             Boolean    @default(true)
+  /// Only for customers with no previous paid or open order.
+  firstOrderOnly     Boolean    @default(false)
+  /// When false the code only discounts items that did not already get a quantity-tier discount.
+  stackWithTiers     Boolean    @default(true)
+  /// Order types the code works on: standard, wholesale, box.
+  modes              String[]   @default(["standard"])
+  /// Limit to these products / categories. Empty = whole order.
+  productIds         String[]   @default([])
+  categoryIds        String[]   @default([])
+  description        String?
+  createdAt          DateTime   @default(now())
 }
 
 model Affiliate {

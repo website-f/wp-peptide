@@ -48,6 +48,8 @@ function MoreLink({ to, children }: { to: string; children: ReactNode }) {
 }
 
 export function Bento({ coa, coaProduct, settings, boxImages }: { coa?: Coa; coaProduct?: string; settings?: Settings; boxImages: { image: string | null; name: string }[] }) {
+  const tiersOn = Boolean(settings?.tierPricing?.enabled && settings.tiers.length > 0)
+  const boxOn = settings?.box?.enabled ?? true
   const steps = [
     { icon: CreditCardIcon, label: 'Paid', note: `before ${settings?.shipping.cutoff ?? '2pm'}` },
     { icon: PackageIcon, label: 'Packed', note: 'same day' },
@@ -94,7 +96,9 @@ export function Bento({ coa, coaProduct, settings, boxImages }: { coa?: Coa; coa
         <CellTitle>Answers before you order.</CellTitle>
         <dl className="mt-5 grid gap-3 text-sm">
           {[
-            ['How do the quantity tiers work?', `3 vials save ${settings?.tiers[0]?.pct ?? 30}%, 10 save ${settings?.tiers.at(-1)?.pct ?? 40}%.`],
+            ...(tiersOn
+              ? [['How do the quantity tiers work?', `${settings?.tiers[0]?.min} vials save ${settings?.tiers[0]?.pct}%, ${settings?.tiers.at(-1)?.min} save ${settings?.tiers.at(-1)?.pct}%.`]]
+              : [['How do I pay?', 'FPX online banking or card, secured by ToyyibPay.']]),
             ['Do you provide certificates?', 'Yes, for every lot.'],
             ['Are your products for human use?', 'No. Laboratory research only.'],
           ].map(([q, a]) => (
@@ -108,7 +112,7 @@ export function Bento({ coa, coaProduct, settings, boxImages }: { coa?: Coa; coa
       </Cell>
 
       {/* Fulfilment timeline */}
-      <Cell i={3} className="bg-surface lg:col-span-6">
+      <Cell i={3} className={cn('bg-surface', boxOn ? 'lg:col-span-6' : 'lg:col-span-12')}>
         <CellTitle>Tracked, door to door.</CellTitle>
         <p className="mt-3 text-muted-foreground">
           Same-day dispatch, tracked courier nationwide, free over {settings ? money(settings.shipping.freeThresholdCents) : 'RM800'}.
@@ -128,12 +132,15 @@ export function Bento({ coa, coaProduct, settings, boxImages }: { coa?: Coa; coa
         <MoreLink to="/policies/shipping">How shipping works</MoreLink>
       </Cell>
 
-      {/* Build a box */}
+      {/* Build a box (only while the program is switched on) */}
+      {boxOn && (
       <Cell i={4} className="grid gap-6 sm:grid-cols-[1fr_auto] lg:col-span-6">
         <div>
           <CellTitle>Build your box.</CellTitle>
           <p className="mt-3 text-muted-foreground">
-            Any {settings?.box.slots ?? 4} compounds, delivered monthly at {settings?.box.pct ?? 40}% off. Bacteriostatic water and shipping included.
+            Any {settings?.box.slots ?? 4} compounds, delivered monthly at {settings?.box.pct ?? 40}% off.{' '}
+            {[settings?.box.includedItem?.trim(), settings?.box.freeShipping ? 'shipping' : ''].filter(Boolean).join(' and ')}
+            {settings?.box.includedItem?.trim() || settings?.box.freeShipping ? ' included.' : ''}
           </p>
           <MoreLink to="/build-a-box">Build a box</MoreLink>
         </div>
@@ -143,6 +150,7 @@ export function Bento({ coa, coaProduct, settings, boxImages }: { coa?: Coa; coa
           ))}
         </div>
       </Cell>
+      )}
     </div>
   )
 }

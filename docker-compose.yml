@@ -41,6 +41,8 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      # Licensed add-on: membership tiers stay hidden everywhere unless this is true.
+      ENABLE_MEMBERSHIP: ${ENABLE_MEMBERSHIP:-false}
       SEED_DEMO: ${SEED_DEMO:-0}
       UPLOAD_DIR: /app/uploads
     volumes:

@@ -7,7 +7,8 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cartCount, useCart } from '@/lib/cart'
 import { money, moneyExact } from '@/lib/format'
-import { useCartQuote } from '@/lib/queries'
+import { tierSentence } from '@/lib/content'
+import { useCartQuote, useSettings } from '@/lib/queries'
 
 export function QtyStepper({ value, onChange, min = 1, max = 999, size = 'sm' }: { value: number; onChange: (v: number) => void; min?: number; max?: number; size?: 'sm' | 'md' }) {
   const h = size === 'sm' ? 'h-9' : 'h-11'
@@ -41,6 +42,7 @@ export function QtyStepper({ value, onChange, min = 1, max = 999, size = 'sm' }:
 export function CartDrawer() {
   const { items, open, setOpen, setQty, remove } = useCart()
   const quote = useCartQuote()
+  const { data: settings } = useSettings()
   const navigate = useNavigate()
   const q = quote.data
   const lineFor = (variantId: string) => q?.lines.find((l) => l.variantId === variantId)
@@ -62,7 +64,7 @@ export function CartDrawer() {
             <EmptyState
               icon={<ShoppingBagIcon />}
               title="Your cart is empty"
-              body="Three of the same compound unlocks 30% off. Ten unlocks 40%."
+              body={tierSentence(settings) ?? 'Every lot ships with its certificate of analysis.'}
               action={
                 <Button onClick={() => setOpen(false)} asChild>
                   <Link to="/shop">Browse compounds</Link>

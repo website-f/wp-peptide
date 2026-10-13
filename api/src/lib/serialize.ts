@@ -28,7 +28,8 @@ export function coaDto(c: Prisma.CoaGetPayload<object>) {
   }
 }
 
-export function productCard(p: ProductFull) {
+/** lowStockAt comes from settings.inventory.lowStockThreshold. */
+export function productCard(p: ProductFull, lowStockAt = 5) {
   const variants = p.variants.filter((v) => v.active)
   const prices = variants.map((v) => v.priceCents)
   const latest = p.coas[0]
@@ -46,13 +47,13 @@ export function productCard(p: ProductFull) {
     latestLot: latest?.lotNumber ?? null,
     fromPriceCents: prices.length ? Math.min(...prices) : null,
     inStock: variants.some((v) => v.stock > 0),
-    variants: variants.map((v) => ({ id: v.id, label: v.label, priceCents: v.priceCents, inStock: v.stock > 0, lowStock: v.stock > 0 && v.stock <= 5 })),
+    variants: variants.map((v) => ({ id: v.id, label: v.label, priceCents: v.priceCents, inStock: v.stock > 0, lowStock: v.stock > 0 && v.stock <= lowStockAt })),
   }
 }
 
-export function productDetail(p: ProductFull) {
+export function productDetail(p: ProductFull, lowStockAt = 5) {
   return {
-    ...productCard(p),
+    ...productCard(p, lowStockAt),
     description: p.description,
     gallery: p.gallery,
     casNumber: p.casNumber,

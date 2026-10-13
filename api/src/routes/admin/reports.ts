@@ -3,6 +3,7 @@ import type { OrderStatus } from '@prisma/client'
 import { z } from 'zod'
 import { db } from '../../lib/db.js'
 import { csvEscape, parse } from '../../lib/http.js'
+import { getSettings } from '../../lib/settings.js'
 
 export const LIVE: OrderStatus[] = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED']
 
@@ -43,6 +44,7 @@ export async function reportRoutes(app: FastifyInstance) {
     const { from, to } = rangeFrom(q)
     const span = to.getTime() - from.getTime()
     const prevFrom = new Date(from.getTime() - span)
+    const lowAt = (await getSettings()).inventory.lowStockThreshold
 
     const [paid, prevPaid, statusCounts, newCustomers, prevCustomers, totalCustomers, recent, lowStock, affPending, payoutReqs, owed, unread, activeSubs] =
       await Promise.all([
@@ -61,7 +63,7 @@ export async function reportRoutes(app: FastifyInstance) {
           select: { id: true, number: true, name: true, email: true, totalCents: true, status: true, kind: true, createdAt: true },
         }),
         db.variant.findMany({
-          where: { active: true, stock: { lte: 5 }, product: { status: 'ACTIVE' } },
+          where: { active: true, stock: { lte: lowAt }, product: { status: 'ACTIVE' } },
           orderBy: { stock: 'asc' },
           take: 8,
           include: { product: { select: { id: true, name: true, image: true } } },

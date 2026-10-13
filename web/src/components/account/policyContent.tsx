@@ -29,6 +29,7 @@ export function policyVars(s: Settings | undefined) {
     couponPct: s ? `${s.affiliate.couponPct}%` : 'the published discount',
     minPayout: s ? money(s.affiliate.minPayoutCents, { whole: true }) : 'the published minimum',
     commitMonths: s ? `${s.box.commitMonths}` : 'the stated number of',
+    pointValue: money(s?.points.valueCentsPer100 ?? 100),
     maxRedeem: s ? `${s.points.maxRedeemPct}%` : 'the published share',
     expiry: s ? `${s.points.expiryMonths} months` : 'the published period',
   }
@@ -436,7 +437,7 @@ export function buildPolicies(v: Vars): PolicyDoc[] {
           body: (
             <UL
               items={[
-                <>100 points are worth {money(100)} at checkout. Points can cover up to {v.maxRedeem} of an order, have no cash value and expire {v.expiry} after they are earned.</>,
+                <>100 points are worth {v.pointValue} at checkout. Points can cover up to {v.maxRedeem} of an order, have no cash value and expire {v.expiry} after they are earned.</>,
                 ...(v.membership ? ['Membership tiers change your points earning rate and shipping benefits for as long as the membership is active.'] : []),
                 <>Build a Box subscriptions have a minimum term of {v.commitMonths} monthly boxes, then can be cancelled from your account.</>,
                 v.membership

@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api } from '@/lib/api'
 import { date, money, num, relative } from '@/lib/format'
-import { useFeatures } from '@/lib/queries'
 import {
   AffiliateStatusBadge,
   ErrorState,
@@ -21,6 +20,7 @@ import {
   SearchInput,
   TierBadge,
 } from '../components/kit'
+import { useLicensed } from '../lib/queries'
 import type { CustomerRow, Paged, Tier } from '../lib/types'
 import { TIER_LABEL, useDebounced } from '../lib/utils'
 
@@ -49,8 +49,8 @@ export default function Customers() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
-  // Tiers only mean something while the membership program is on (Settings > Programs).
-  const { membership } = useFeatures()
+  // Tiers only exist while the membership add-on is licensed and switched on.
+  const { membershipOn: membership } = useLicensed()
   const tierParam = params.get('tier')
   const tier = membership && TIERS.includes(tierParam as Tier) ? (tierParam as Tier) : null
   const page = Math.max(1, Number(params.get('page')) || 1)
@@ -140,7 +140,7 @@ export default function Customers() {
         <EmptyState
           icon={<UsersIcon />}
           title={filtered ? 'No matches' : 'No customers yet'}
-          body={filtered ? 'Nobody matches this search or tier. Try a different spelling or clear the filters.' : 'Customers appear here once they create an account or place an order.'}
+          body={filtered ? membership ? 'Nobody matches this search or tier. Try a different spelling or clear the filters.' : 'Nobody matches this search. Try a different spelling or clear the search.' : 'Customers appear here once they create an account or place an order.'}
           action={
             filtered ? (
               <Button

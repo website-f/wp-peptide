@@ -1,11 +1,11 @@
 import { LockSimpleIcon, MagnifyingGlassIcon, SpinnerIcon, StackIcon } from '@phosphor-icons/react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, Navigate } from 'react-router'
 import { toast } from 'sonner'
 import { ProductImage } from '@/components/brand/ProductImage'
 import { EmptyState, PageHeader, Purity } from '@/components/brand/bits'
-import { ContactFields, emptyContact, FormSection, PaymentChoice, toAddress, validateContact, type ContactForm } from '@/components/checkout/Fields'
+import { CodeField, ContactFields, emptyContact, FormSection, PaymentChoice, toAddress, validateContact, type ContactForm } from '@/components/checkout/Fields'
 import { QtyStepper } from '@/components/layout/CartDrawer'
 import { ResearchDisclaimer } from '@/components/layout/SiteFooter'
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { api, errorMessage } from '@/lib/api'
 import { money, moneyExact, num } from '@/lib/format'
-import { useMe, useProducts, useSettings } from '@/lib/queries'
+import { useMe, usePrograms, useProducts, useSettings } from '@/lib/queries'
 import { getRefCode } from '@/lib/referral'
 import type { Ladder, PlaceOrderResult, ProductCard, Quote } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -23,10 +23,22 @@ import { cn } from '@/lib/utils'
 const pctFor = (qty: number, ladder: Ladder[]) => ladder.reduce((a, t) => (qty >= t.min ? t.pct : a), 0)
 
 export default function Bulk() {
+  const programs = usePrograms()
+  // Switched off in Admin > Settings: the page is not reachable.
+  if (programs.loaded && !programs.bulk) return <Navigate to="/shop" replace />
+  return <BulkPage />
+}
+
+function BulkPage() {
   const { data: settings } = useSettings()
   const products = useProducts()
   const ladder = useMemo(() => settings?.wholesale ?? [], [settings])
   const min = ladder[0]?.min ?? 10
+  // 'product': each compound reaches the ladder on its own. 'order': all units in the order count together.
+  const byOrder = settings?.bulk.countBy === 'order'
+  const freeShip = settings?.bulk.freeShipping ?? true
+  const maxUnits = settings?.bulk.maxUnitsPerOrder ?? 0
+  const topPct = ladder.reduce((a, t) => Math.max(a, t.pct), 0)
   const [q, setQ] = useState('')
   // productId -> { variantId, qty }
   const [sel, setSel] = useState<Record<string, { variantId: string; qty: number }>>({})
@@ -34,6 +46,8 @@ export default function Bulk() {
 
   const rows = (products.data ?? []).filter((p) => !q || p.name.toLowerCase().includes(q.toLowerCase()))
   const chosen = Object.entries(sel).filter(([, s]) => s.qty > 0)
+  const orderUnits = chosen.reduce((a, [, s]) => a + s.qty, 0)
+  const pctOf = (qty: number) => pctFor(byOrder ? orderUnits : qty, ladder)
   const totals = chosen.reduce(
     (acc, [pid, s]) => {
       const p = products.data?.find((x) => x.id === pid)
@@ -42,7 +56,7 @@ export default function Bulk() {
       const list = v.priceCents * s.qty
       acc.units += s.qty
       acc.list += list
-      acc.net += Math.round((list * (100 - pctFor(s.qty, ladder))) / 100)
+      acc.net += Math.round((list * (100 - pctOf(s.qty))) / 100)
       return acc
     },
     { units: 0, list: 0, net: 0 },
@@ -53,7 +67,10 @@ export default function Bulk() {
 
   return (
     <>
-      <PageHeader title="Buy in bulk. Save up to 55%." intro={`Wholesale pricing per product from ${min} units, with free tracked delivery and same-day dispatch.`} />
+      <PageHeader
+        title={topPct ? `Buy in bulk. Save up to ${topPct}%.` : 'Buy in bulk.'}
+        intro={`Wholesale pricing from ${min} units ${byOrder ? 'per order' : 'of a product'}${freeShip ? ', with free tracked delivery' : ''} and same-day dispatch.`}
+      />
 
       <section className="container-x">
         <div className="grid gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-3">
@@ -61,7 +78,7 @@ export default function Bulk() {
             <div key={t.min} className="bg-card p-6">
               <p className="font-mono text-xs text-muted-foreground">
                 {t.min}
-                {ladder[i + 1] ? `-${ladder[i + 1].min - 1}` : '+'} units of a product
+                {ladder[i + 1] ? `-${ladder[i + 1].min - 1}` : '+'} units {byOrder ? 'in the order' : 'of a product'}
               </p>
               <p className="display mt-3 text-6xl text-gold-ink">{t.pct}%</p>
               <p className="mt-1 text-sm text-muted-foreground">off list price</p>
@@ -69,7 +86,8 @@ export default function Bulk() {
           ))}
         </div>
         <p className="mt-4 text-[13px] text-muted-foreground">
-          Rates apply per product. Wholesale pricing does not stack with the quantity tiers, discount codes or membership points multipliers.
+          {byOrder ? 'Rates use the total units in your order, across all compounds.' : 'Rates apply per product, based on how many units of that compound you order.'}{' '}
+          Wholesale pricing replaces the normal quantity discounts.{maxUnits > 0 ? ` Up to ${maxUnits} units per order.` : ''}
         </p>
       </section>
 
@@ -85,8 +103,8 @@ export default function Bulk() {
               const s = sel[p.id]
               const v = p.variants.find((x) => x.id === s?.variantId) ?? p.variants.find((x) => x.inStock) ?? p.variants[0]
               const qty = s?.qty ?? 0
-              const pct = pctFor(qty, ladder)
-              const nextTier = ladder.find((t) => t.min > qty)
+              const pct = qty > 0 ? pctOf(qty) : 0
+              const nextTier = ladder.find((t) => t.min > (byOrder ? orderUnits : qty))
               return (
                 <li key={p.id} className="grid grid-cols-[64px_1fr] gap-x-4 gap-y-3 p-4 sm:grid-cols-[72px_1fr_auto] sm:items-center">
                   <ProductImage src={p.image} alt={p.name} sizes="72px" className="row-span-2 size-16 rounded-lg sm:row-span-1 sm:size-[72px]" />
@@ -128,7 +146,7 @@ export default function Bulk() {
                       </Button>
                     ) : (
                       <>
-                        <QtyStepper value={qty} onChange={(n) => setQty(p, n < min ? 0 : n)} min={0} />
+                        <QtyStepper value={qty} onChange={(n) => setQty(p, !byOrder && n < min ? 0 : n)} min={0} />
                         <Button variant="ghost" size="sm" onClick={() => setQty(p, qty + 10)}>
                           +10
                         </Button>
@@ -181,7 +199,7 @@ export default function Bulk() {
             <Button size="lg" className="mt-5 w-full" disabled={chosen.length === 0} onClick={() => setOpen(true)}>
               Checkout
             </Button>
-            <p className="mt-3 text-[12px] text-muted-foreground">Free tracked delivery. Need an invoice or a quote for more than 500 units? Use the contact page.</p>
+            <p className="mt-3 text-[12px] text-muted-foreground">{freeShip ? 'Free tracked delivery. ' : ''}Need an invoice or a larger quote? Use the contact page.</p>
           </div>
         </aside>
       </div>
@@ -211,7 +229,14 @@ function BulkCheckout({ items }: { items: { variantId: string; quantity: number 
   useEffect(() => {
     if (!method && settings?.paymentMethods[0]) setMethod(settings.paymentMethods[0].id)
   }, [settings, method])
-  const quote = useQuery({ queryKey: ['bulk-quote', items], queryFn: () => api.post<Quote>('/api/cart/quote', { items, mode: 'wholesale', refCode: getRefCode() }), retry: false })
+  const [code, setCode] = useState('')
+  const quote = useQuery({
+    queryKey: ['bulk-quote', items, code],
+    queryFn: () => api.post<Quote>('/api/cart/quote', { items, mode: 'wholesale', couponCode: code || null, refCode: getRefCode() }),
+    retry: false,
+    placeholderData: keepPreviousData,
+  })
+  const codeOk = !code || !quote.data?.couponError
 
   const place = useMutation({
     mutationFn: () =>
@@ -219,6 +244,7 @@ function BulkCheckout({ items }: { items: { variantId: string; quantity: number 
         items,
         mode: 'wholesale',
         refCode: getRefCode(),
+        couponCode: code || undefined,
         email: form.email.trim(),
         name: form.name.trim(),
         phone: form.phone.trim(),
@@ -260,8 +286,18 @@ function BulkCheckout({ items }: { items: { variantId: string; quantity: number 
                 <span className="font-mono">{moneyExact(l.lineTotalCents)}</span>
               </li>
             ))}
+            {quote.data.couponDiscountCents > 0 && (
+              <li className="flex justify-between gap-3 text-gold-ink">
+                <span>{quote.data.coupon?.label}</span>
+                <span className="font-mono">-{moneyExact(quote.data.couponDiscountCents)}</span>
+              </li>
+            )}
+            <li className="flex justify-between gap-3">
+              <span>Delivery</span>
+              <span className="font-mono">{quote.data.shippingCents === 0 ? 'Free' : moneyExact(quote.data.shippingCents)}</span>
+            </li>
             <li className="flex justify-between border-t pt-2 font-medium">
-              <span>Total, free delivery</span>
+              <span>Total</span>
               <span className="font-mono">{moneyExact(quote.data.totalCents)}</span>
             </li>
           </ul>
@@ -272,6 +308,9 @@ function BulkCheckout({ items }: { items: { variantId: string; quantity: number 
       </FormSection>
       <FormSection title="Payment">
         <PaymentChoice methods={settings?.paymentMethods ?? []} value={method} onChange={setMethod} />
+        <div className="mt-4">
+          <CodeField id="bulk-code" applied={code} label={quote.data?.coupon?.label ?? null} error={quote.data?.couponError ?? null} onApply={setCode} onRemove={() => setCode('')} />
+        </div>
       </FormSection>
       <div className="flex items-start gap-3 rounded-xl border border-gold/30 bg-gold/5 p-4">
         <Checkbox id="bulk-confirm" checked={confirm} onCheckedChange={(v) => setConfirm(v === true)} className="mt-0.5" />
@@ -279,7 +318,7 @@ function BulkCheckout({ items }: { items: { variantId: string; quantity: number 
           I am 21+ and purchasing for laboratory, in vitro research only, not for human or veterinary use.
         </Label>
       </div>
-      <Button type="submit" size="lg" className="h-14 text-base" disabled={place.isPending || !quote.data}>
+      <Button type="submit" size="lg" className="h-14 text-base" disabled={place.isPending || !quote.data || !codeOk}>
         {place.isPending ? <SpinnerIcon className="size-5 animate-spin" /> : <LockSimpleIcon className="size-5" />}
         Pay {quote.data ? moneyExact(quote.data.totalCents) : ''}
       </Button>

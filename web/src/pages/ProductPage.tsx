@@ -36,9 +36,14 @@ export default function ProductPage() {
   }, [product])
 
   const v = product?.variants.find((x) => x.id === variantId)
-  const tiers = useMemo(() => [{ min: 1, pct: 0 }, ...(settings?.tiers ?? [])], [settings])
+  // Quantity discounts follow Admin > Settings: on/off, ladder, and whether units count per compound or per order.
+  const tiersOn = Boolean(settings?.tierPricing?.enabled && settings.tiers.length > 0)
+  const byOrder = settings?.tierPricing?.countBy === 'order'
+  const tiers = useMemo(() => [{ min: 1, pct: 0 }, ...(tiersOn ? (settings?.tiers ?? []) : [])], [settings, tiersOn])
   // Tier counts units of this compound across all sizes, including ones already in the cart.
-  const alreadyInCart = product ? inCart.filter((i) => i.productId === product.id && i.variantId !== variantId).reduce((a, i) => a + i.quantity, 0) : 0
+  const alreadyInCart = product
+    ? inCart.filter((i) => (byOrder || i.productId === product.id) && i.variantId !== variantId).reduce((a, i) => a + i.quantity, 0)
+    : 0
   const unitsForTier = qty + alreadyInCart
   const pct = tiers.reduce((acc, t) => (unitsForTier >= t.min ? t.pct : acc), 0)
   const activeMin = tiers.reduce((a, t) => (qty >= t.min ? t.min : a), 1)
@@ -121,7 +126,8 @@ export default function ProductPage() {
 
           <div className="mt-6">
             <p className="mb-2 text-sm font-medium">Quantity</p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Quantity tier">
+            {tiersOn && (
+            <div className={cn('grid grid-cols-2 gap-2', tiers.length >= 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-3')} role="radiogroup" aria-label="Quantity tier">
               {tiers.map((t) => {
                 const active = t.min === activeMin
                 const per = v ? Math.round((v.priceCents * (100 - t.pct)) / 100) : 0
@@ -145,9 +151,14 @@ export default function ProductPage() {
                 )
               })}
             </div>
-            <div className="mt-3 flex items-center gap-3">
+            )}
+            <div className={cn('flex items-center gap-3', tiersOn && 'mt-3')}>
               <QtyStepper value={qty} onChange={(n) => setQty(Math.max(1, n))} size="md" />
-              {alreadyInCart > 0 && <span className="text-[13px] text-muted-foreground">+{alreadyInCart} other sizes already in cart count toward your tier</span>}
+              {tiersOn && alreadyInCart > 0 && (
+                <span className="text-[13px] text-muted-foreground">
+                  +{alreadyInCart} {byOrder ? 'other items' : 'other sizes'} already in cart count toward your discount
+                </span>
+              )}
             </div>
           </div>
 

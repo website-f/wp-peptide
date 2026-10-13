@@ -81,6 +81,12 @@ export function TierStairs({ settings }: { settings?: Settings }) {
   )
 }
 
+/** " Shipping and X included." from the Build a Box settings, or nothing. */
+function boxPerks(s?: Settings) {
+  const perks = [s?.box.freeShipping ? 'Shipping' : '', s?.box.includedItem?.trim().toLowerCase() ?? ''].filter(Boolean)
+  return perks.length ? ` ${perks.join(' and ')} included.` : ''
+}
+
 export function Programs({ settings }: { settings?: Settings }) {
   const membershipOn = settings?.features?.membership ?? false
   const p = settings?.points
@@ -92,7 +98,7 @@ export function Programs({ settings }: { settings?: Settings }) {
       name: 'KYVO Points',
       big: `${p?.perDollar.MEMBER ?? 2.5}x`,
       unit: 'points per RM1',
-      body: `100 points = ${money(100)} off. Orders over ${p ? money(p.bonusThresholdCents) : 'RM800'} earn ${p?.bonusPoints ?? 500} bonus points.`,
+      body: `100 points = ${money(p?.valueCentsPer100 ?? 100)} off. Orders over ${p ? money(p.bonusThresholdCents) : 'RM800'} earn ${p?.bonusPoints ?? 500} bonus points.`,
     },
     {
       icon: CrownSimpleIcon,
@@ -108,7 +114,7 @@ export function Programs({ settings }: { settings?: Settings }) {
       name: 'Build a Box',
       big: `${settings?.box.pct ?? 40}%`,
       unit: 'off, every month',
-      body: `${settings?.box.slots ?? 4} compounds a month for ${settings?.box.commitMonths ?? 3} months minimum. Shipping and bacteriostatic water included.`,
+      body: `${settings?.box.slots ?? 4} compounds a month for ${settings?.box.commitMonths ?? 3} months minimum.${boxPerks(settings)}`,
     },
     {
       icon: StackIcon,
@@ -119,12 +125,18 @@ export function Programs({ settings }: { settings?: Settings }) {
       body: w.map((x) => `${x.min} units ${x.pct}%`).join(', ') + '. Priced per product.',
     },
   ]
-  const items = all.filter((it) => it.to !== '/membership' || membershipOn)
+  const off = new Set([
+    ...(membershipOn ? [] : ['/membership']),
+    ...(settings?.box?.enabled === false ? ['/build-a-box'] : []),
+    ...(settings?.bulk?.enabled === false ? ['/bulk'] : []),
+  ])
+  const items = all.filter((it) => !off.has(it.to))
+  const word = ['Zero', 'One', 'Two', 'Three', 'Four'][items.length] ?? String(items.length)
   return (
     <section className="container-x py-20 md:py-28">
-      <SectionTitle>{items.length === 4 ? 'Four' : 'Three'} ways to save.</SectionTitle>
+      <SectionTitle>{items.length === 1 ? 'One way to save.' : `${word} ways to save.`}</SectionTitle>
       {/* 4 programs sit in a 2x2 grid; 3 sit in one row so no cell is left empty. */}
-      <div className={cn('mt-12 grid gap-px overflow-hidden rounded-xl border bg-border', items.length === 4 ? 'sm:grid-cols-2' : 'lg:grid-cols-3')}>
+      <div className={cn('mt-12 grid gap-px overflow-hidden rounded-xl border bg-border', items.length === 4 || items.length === 2 ? 'sm:grid-cols-2' : items.length === 3 ? 'lg:grid-cols-3' : '')}>
         {items.map((it) => (
           <Link key={it.name} to={it.to} className="group flex flex-col bg-background p-6 transition-colors hover:bg-card sm:p-8">
             <div className="flex items-center justify-between">

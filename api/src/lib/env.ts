@@ -24,6 +24,9 @@ export const env = {
     secretKey: process.env.TOYYIBPAY_SECRET_KEY ?? '',
     categoryCode: process.env.TOYYIBPAY_CATEGORY_CODE ?? '',
   },
+  // Licensed add-ons. Off unless explicitly enabled for this installation; the
+  // store admin cannot see or switch these on from the panel.
+  enableMembership: process.env.ENABLE_MEMBERSHIP === 'true',
   smtp: {
     host: process.env.SMTP_HOST ?? '',
     port: Number(process.env.SMTP_PORT ?? 587),

@@ -1,4 +1,6 @@
-import { BankIcon, CreditCardIcon, LockSimpleIcon } from '@phosphor-icons/react'
+import { BankIcon, CreditCardIcon, LockSimpleIcon, TagIcon } from '@phosphor-icons/react'
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import type { ReactNode } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -169,6 +171,75 @@ export function PaymentChoice({ methods, value, onChange }: { methods: Settings[
           </span>
         </button>
       ))}
+    </div>
+  )
+}
+
+/**
+ * Discount or partner code entry for the Bulk and Build a Box checkouts. The server decides
+ * whether the code applies (order type, limits, dates); this only shows the outcome.
+ */
+export function CodeField({
+  id,
+  applied,
+  label,
+  error,
+  onApply,
+  onRemove,
+}: {
+  id: string
+  applied: string
+  label: string | null
+  error: string | null
+  onApply: (code: string) => void
+  onRemove: () => void
+}) {
+  const [value, setValue] = useState(applied)
+  if (applied && !error) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-gold/30 bg-gold/8 px-3 py-2.5 text-sm">
+        <span className="flex min-w-0 items-center gap-2">
+          <TagIcon className="size-4 shrink-0 text-gold-ink" />
+          <span className="font-mono">{applied}</span>
+          {label && <span className="truncate text-muted-foreground">{label}</span>}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setValue('')
+            onRemove()
+          }}
+          className="shrink-0 text-[12px] text-muted-foreground underline hover:text-foreground"
+        >
+          Remove
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id} className="text-[13px]">
+        Discount or partner code (optional)
+      </Label>
+      <div className="flex gap-2">
+        <Input
+          id={id}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              if (value.trim()) onApply(value.trim().toUpperCase())
+            }
+          }}
+          className="font-mono uppercase"
+          autoCapitalize="characters"
+        />
+        <Button type="button" variant="outline" className="h-11" disabled={!value.trim()} onClick={() => onApply(value.trim().toUpperCase())}>
+          Apply
+        </Button>
+      </div>
+      {applied && error && <p className="text-[12px] text-destructive">{error}</p>}
     </div>
   )
 }

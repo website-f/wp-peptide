@@ -2,7 +2,7 @@ import { ArrowRightIcon, CoinsIcon } from '@phosphor-icons/react'
 import { Link } from 'react-router'
 import { PageHeader } from '@/components/brand/bits'
 import { Button } from '@/components/ui/button'
-import { money, num } from '@/lib/format'
+import { money, num, pointsCents } from '@/lib/format'
 import { useFeatures, useMe, useSettings } from '@/lib/queries'
 import { TIER_LABEL, type Tier } from '@/lib/types'
 
@@ -18,11 +18,11 @@ export default function Points() {
 
   return (
     <>
-      <PageHeader title="Points that pay for your next order." intro={`Earn on every order, redeem at checkout. 100 points = ${money(100)}.`}>
+      <PageHeader title="Points that pay for your next order." intro={`Earn on every order, redeem at checkout. 100 points = ${money(p?.valueCentsPer100 ?? 100)}.`}>
         {me?.user && (
           <p className="mt-6 inline-flex items-center gap-2 rounded-md border border-gold/30 bg-gold/10 px-3.5 py-2 text-sm">
             <CoinsIcon className="size-4 text-gold-ink" /> You have <strong className="font-mono">{num(me.user.pointsBalance)}</strong> points, worth{' '}
-            {money(me.user.pointsBalance)}.
+            {money(pointsCents(me.user.pointsBalance, p?.valueCentsPer100))}.
           </p>
         )}
       </PageHeader>
@@ -36,7 +36,7 @@ export default function Points() {
                 <span className="font-medium">{features.membership ? TIER_LABEL[t] : 'Every account'}</span>
                 <span className="text-right">
                   <span className="font-mono text-lg">{num(earn(t))} pts</span>
-                  <span className="block font-mono text-[12px] text-gold-ink">{money(earn(t))} back</span>
+                  <span className="block font-mono text-[12px] text-gold-ink">{money(pointsCents(earn(t), p?.valueCentsPer100))} back</span>
                 </span>
               </li>
             ))}

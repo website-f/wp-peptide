@@ -5,7 +5,7 @@ import { EmptyState } from '@/components/brand/bits'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api } from '@/lib/api'
-import { date, money, moneyExact, num } from '@/lib/format'
+import { date, money, moneyExact, num, pointsCents } from '@/lib/format'
 import { useFeatures, useSettings } from '@/lib/queries'
 import { TIER_LABEL, type Tier } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -37,8 +37,9 @@ export function AccountPoints() {
   if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} title="Could not load your points" />
 
   const d = q.data
-  // 100 points = RM1, so the balance in points is its value in cents.
-  const valueCents = d.balance
+  // What the balance is worth, at the store's current points value.
+  const per100 = settings.data?.points.valueCentsPer100
+  const valueCents = pointsCents(d.balance, per100)
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)] lg:items-start">
@@ -53,7 +54,7 @@ export function AccountPoints() {
             <div className="bg-card p-5">
               <p className="text-xs text-muted-foreground uppercase">Worth at checkout</p>
               <p className="gold-text mt-1 font-mono text-3xl font-medium tabular-nums">{moneyExact(valueCents)}</p>
-              <p className="text-xs text-muted-foreground">100 points = {money(100)}</p>
+              <p className="text-xs text-muted-foreground">100 points = {money(per100 ?? 100)}</p>
             </div>
             <div className="bg-card p-5">
               <p className="text-xs text-muted-foreground uppercase">Lifetime earned</p>

@@ -4,6 +4,7 @@ import { db } from './db.js'
 import { env } from './env.js'
 import { HttpError } from './http.js'
 import { setOrderStatus } from './orders.js'
+import { getSettings } from './settings.js'
 
 // ToyyibPay (Malaysia, MYR only). Docs: https://toyyibpay.com/apireference/
 // Sandbox: https://dev.toyyibpay.com   Production: https://toyyibpay.com
@@ -45,6 +46,7 @@ export async function createBill(order: Order): Promise<{ billCode: string; paym
   if (!toyyibEnabled()) throw new HttpError(503, 'Online payment is not configured yet')
   const returnUrl = `${env.publicUrl}/order/${order.number}?key=${order.accessKey}`
   const callbackUrl = `${env.apiPublicUrl}/api/payments/toyyibpay/callback`
+  const s = await getSettings()
   const out = await post('/index.php/api/createBill', {
     userSecretKey: env.toyyib.secretKey,
     categoryCode: env.toyyib.categoryCode,
@@ -63,7 +65,7 @@ export async function createBill(order: Order): Promise<{ billCode: string; paym
     billSplitPaymentArgs: '',
     billPaymentChannel: '2',
     billChargeToCustomer: '',
-    billExpiryDays: '3',
+    billExpiryDays: String(Math.min(100, Math.max(1, s.orders.unpaidExpiryDaysOnline))),
     billContentEmail: clean(`Thank you for your order ${order.number}`, 1000),
   })
   const billCode = Array.isArray(out) ? (out[0] as { BillCode?: string })?.BillCode : undefined

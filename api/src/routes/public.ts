@@ -38,7 +38,8 @@ export async function publicRoutes(app: FastifyInstance) {
     if (q.box) where.boxEligible = true
     const orderBy: Prisma.ProductOrderByWithRelationInput[] =
       q.sort === 'name' ? [{ name: 'asc' }] : q.sort === 'newest' ? [{ createdAt: 'desc' }] : [{ featured: 'desc' }, { sortOrder: 'asc' }]
-    const products = (await db.product.findMany({ where, orderBy, include: productInclude })).map(productCard)
+    const low = (await getSettings()).inventory.lowStockThreshold
+    const products = (await db.product.findMany({ where, orderBy, include: productInclude })).map((p) => productCard(p, low))
     if (q.sort === 'price-asc') products.sort((a, b) => (a.fromPriceCents ?? 0) - (b.fromPriceCents ?? 0))
     if (q.sort === 'price-desc') products.sort((a, b) => (b.fromPriceCents ?? 0) - (a.fromPriceCents ?? 0))
     return products
@@ -54,7 +55,8 @@ export async function publicRoutes(app: FastifyInstance) {
       take: 8,
       include: productInclude,
     })
-    return { product: productDetail(p), related: related.map(productCard) }
+    const low = (await getSettings()).inventory.lowStockThreshold
+    return { product: productDetail(p, low), related: related.map((r) => productCard(r, low)) }
   })
 
   app.get('/api/coas', async (req) => {

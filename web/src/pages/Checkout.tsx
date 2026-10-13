@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { api, errorMessage } from '@/lib/api'
 import { useCart } from '@/lib/cart'
-import { money, moneyExact, num } from '@/lib/format'
+import { money, moneyExact, num, pointsCents } from '@/lib/format'
 import { useCartQuote, useMe, useSettings } from '@/lib/queries'
 import { getRefCode } from '@/lib/referral'
 import type { PlaceOrderResult, Quote } from '@/lib/types'
@@ -183,7 +183,7 @@ export default function Checkout() {
               <div className="flex items-center justify-between gap-4">
                 <Label htmlFor="use-points" className="flex items-center gap-2 font-normal">
                   <CoinsIcon className="size-5 text-gold-ink" />
-                  Use {num(q.maxRedeemablePoints)} points to save {money(q.maxRedeemablePoints)}
+                  Use {num(q.maxRedeemablePoints)} points to save {money(pointsCents(q.maxRedeemablePoints, settings?.points.valueCentsPer100))}
                 </Label>
                 <Switch
                   id="use-points"
@@ -194,7 +194,7 @@ export default function Checkout() {
                   }}
                 />
               </div>
-              <p className="mt-2 text-[12px] text-muted-foreground">Points can cover up to {settings?.points.maxRedeemPct ?? 50}% of an order. 100 points = {money(100)}.</p>
+              <p className="mt-2 text-[12px] text-muted-foreground">Points can cover up to {settings?.points.maxRedeemPct ?? 50}% of an order. 100 points = {money(settings?.points.valueCentsPer100 ?? 100)}.</p>
             </FormSection>
           )}
 

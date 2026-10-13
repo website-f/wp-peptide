@@ -29,7 +29,8 @@ import { currencySymbol, money, moneyExact, num, relative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ErrorState, Kpi, Num, OrderStatusBadge, PageHeader, Panel, Pill, Segmented } from '../components/kit'
 import type { DashboardData } from '../lib/types'
-import { KIND_LABEL, useInvalidateAdmin } from '../lib/utils'
+import { useAdminSettings, useLicensed } from '../lib/queries'
+import { kindLabel, useInvalidateAdmin } from '../lib/utils'
 
 const RANGES = [
   { value: '7', label: '7 days' },
@@ -251,6 +252,7 @@ function AttentionQueue({ data }: { data: DashboardData }) {
 }
 
 function RecentOrders({ data }: { data: DashboardData }) {
+  const licensed = useLicensed()
   const navigate = useNavigate()
   return (
     <Panel
@@ -281,7 +283,7 @@ function RecentOrders({ data }: { data: DashboardData }) {
                     {o.number}
                   </Link>
                   <OrderStatusBadge status={o.status} />
-                  {o.kind !== 'STANDARD' && <Pill dot={false}>{KIND_LABEL[o.kind]}</Pill>}
+                  {o.kind !== 'STANDARD' && <Pill dot={false}>{kindLabel(o.kind, licensed.membership)}</Pill>}
                 </div>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
                   {o.name} · {relative(o.createdAt)}
@@ -330,10 +332,16 @@ function TopProducts({ data, days }: { data: DashboardData; days: string }) {
 }
 
 function LowStock({ data }: { data: DashboardData }) {
+  const settings = useAdminSettings()
+  const threshold = settings.data?.settings.inventory.lowStockThreshold
   return (
     <Panel
       title="Low stock"
-      description="Active sizes with 5 or fewer units left. Update the count after a restock."
+      description={
+        threshold === undefined
+          ? 'Active sizes running low. Update the count after a restock.'
+          : `Active sizes with ${num(threshold)} or fewer units left. Update the count after a restock. Change the level in Settings.`
+      }
       flush
       action={
         <Button variant="ghost" size="sm" asChild>
@@ -345,7 +353,7 @@ function LowStock({ data }: { data: DashboardData }) {
     >
       {data.lowStock.length === 0 ? (
         <div className="p-4">
-          <EmptyState icon={<PackageIcon />} title="Stock looks healthy" body="Every live product has more than 5 units of each size." />
+          <EmptyState icon={<PackageIcon />} title="Stock looks healthy" body={threshold === undefined ? 'No live size is running low.' : `Every live product has more than ${num(threshold)} units of each size.`} />
         </div>
       ) : (
         <ul className="grid divide-y md:grid-cols-2 md:divide-y-0 md:[&>li]:border-b md:[&>li:nth-child(odd)]:border-r md:[&>li:last-child:nth-child(odd)]:border-r-0">

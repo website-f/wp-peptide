@@ -11,17 +11,19 @@ import { api } from '@/lib/api'
 import { money, num } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ErrorState, Num, PageHeader, Panel, Pill, ProductStatusBadge, RowsSkeleton, SearchInput, Segmented } from '../components/kit'
+import { useAdminSettings } from '../lib/queries'
 import type { AdminProduct, ProductStatus } from '../lib/types'
 
 type StatusFilter = 'all' | ProductStatus
 
-const LOW_STOCK = 5
+/** Used until settings load. The real level is Settings > Orders and stock. */
+const DEFAULT_LOW_STOCK = 5
 
 /** Stock health across sizes that are on sale. Inactive sizes cannot be bought, so they are ignored. */
-function stockInfo(p: AdminProduct) {
+function stockInfo(p: AdminProduct, lowAt: number) {
   const active = p.variants.filter((v) => v.active)
   const total = active.reduce((a, v) => a + v.stock, 0)
-  const low = active.filter((v) => v.stock <= LOW_STOCK)
+  const low = active.filter((v) => v.stock <= lowAt)
   const state: 'none' | 'out' | 'low' | 'ok' = active.length === 0 ? 'none' : total === 0 ? 'out' : low.length > 0 ? 'low' : 'ok'
   return { total, low, state }
 }
@@ -35,6 +37,7 @@ function priceRange(p: AdminProduct) {
 }
 
 export default function Products() {
+  const lowAt = useAdminSettings().data?.settings.inventory.lowStockThreshold ?? DEFAULT_LOW_STOCK
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
@@ -76,7 +79,7 @@ export default function Products() {
     })
   }, [products, q, status])
 
-  const attention = useMemo(() => products.filter((p) => p.status === 'ACTIVE' && ['low', 'out'].includes(stockInfo(p).state)).length, [products])
+  const attention = useMemo(() => products.filter((p) => p.status === 'ACTIVE' && ['low', 'out'].includes(stockInfo(p, lowAt).state)).length, [products, lowAt])
 
   const filtered = q.trim() !== '' || status !== 'all'
   const open = (id: string) => navigate(`/admin/products/${id}`)
@@ -161,7 +164,7 @@ export default function Products() {
           {/* Phones: stacked cards */}
           <div className="grid gap-2.5 md:hidden">
             {rows.map((p) => (
-              <ProductCard key={p.id} p={p} />
+              <ProductCard key={p.id} p={p} lowAt={lowAt} />
             ))}
           </div>
 
@@ -184,7 +187,7 @@ export default function Products() {
               </TableHeader>
               <TableBody>
                 {rows.map((p) => {
-                  const stock = stockInfo(p)
+                  const stock = stockInfo(p, lowAt)
                   const range = priceRange(p)
                   return (
                     <TableRow key={p.id} className="cursor-pointer" onClick={() => open(p.id)}>
@@ -231,7 +234,7 @@ export default function Products() {
             </Table>
           </Panel>
           <p className="mt-3 text-xs text-muted-foreground">
-            Sold and revenue count paid orders only. Low stock means a size on sale has {LOW_STOCK} or fewer left.
+            Sold and revenue count paid orders only. Low stock means a size on sale has {lowAt} or fewer left.
           </p>
         </>
       )}
@@ -280,8 +283,8 @@ function StockCell({ p, stock }: { p: AdminProduct; stock: ReturnType<typeof sto
   )
 }
 
-function ProductCard({ p }: { p: AdminProduct }) {
-  const stock = stockInfo(p)
+function ProductCard({ p, lowAt }: { p: AdminProduct; lowAt: number }) {
+  const stock = stockInfo(p, lowAt)
   const range = priceRange(p)
   return (
     <Link

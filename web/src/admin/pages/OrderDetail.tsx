@@ -31,7 +31,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { api, errorMessage } from '@/lib/api'
 import { date, money, moneyExact, num, plural } from '@/lib/format'
-import { useFeatures } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import {
   CommissionStatusBadge,
@@ -50,7 +49,8 @@ import {
   TierBadge,
 } from '../components/kit'
 import type { OrderDetail as Order, OrderStatus } from '../lib/types'
-import { COMMISSION_STATUS, KIND_LABEL, ORDER_STATUS, paymentLabel, useInvalidateAdmin } from '../lib/utils'
+import { useLicensed } from '../lib/queries'
+import { COMMISSION_STATUS, ORDER_STATUS, kindLabel, paymentLabel, useInvalidateAdmin } from '../lib/utils'
 
 const CARRIERS = ['J&T Express', 'Pos Laju', 'DHL eCommerce', 'Ninja Van', 'City-Link']
 
@@ -58,6 +58,7 @@ type StatusBody = { status: OrderStatus; carrier?: string; trackingNumber?: stri
 
 export default function OrderDetail() {
   const { id = '' } = useParams()
+  const licensed = useLicensed()
   const { data: o, isLoading, error, refetch } = useQuery({
     queryKey: ['admin', 'order', id],
     queryFn: () => api.get<Order>(`/api/admin/orders/${id}`),
@@ -87,7 +88,7 @@ export default function OrderDetail() {
         meta={
           <>
             <OrderStatusBadge status={o.status} />
-            <Pill dot={false}>{KIND_LABEL[o.kind]}</Pill>
+            <Pill dot={false}>{kindLabel(o.kind, licensed.membership)}</Pill>
             <span>Placed {date(o.createdAt, true)}</span>
           </>
         }
@@ -161,6 +162,7 @@ function ActionPanel({ o }: { o: Order }) {
   const [dialog, setDialog] = useState<null | 'paid' | 'ship' | 'deliver' | 'cancel' | 'refund'>(null)
   const next = new Set(o.nextStatuses)
   const isMembership = o.kind === 'MEMBERSHIP'
+  const licensed = useLicensed()
 
   const check = useMutation({
     mutationFn: () => api.post<{ result: 'paid' | 'pending' | 'failed' | 'unchanged' }>(`/api/admin/orders/${o.id}/check-payment`),
@@ -273,7 +275,9 @@ function ActionPanel({ o }: { o: Order }) {
         title={isMembership ? 'Mark as complete?' : 'Mark as delivered?'}
         description={
           isMembership
-            ? 'Use this once the membership is active for the customer.'
+            ? licensed.membership
+              ? 'Use this once the membership is active for the customer.'
+              : 'Use this once the order is fulfilled for the customer.'
             : 'Confirm the customer has received the parcel. The status cannot go back to shipped.'
         }
         confirmLabel={isMembership ? 'Mark complete' : 'Mark delivered'}
@@ -293,6 +297,7 @@ function ActionPanel({ o }: { o: Order }) {
 }
 
 function MarkPaidDialog({ open, onOpenChange, o }: { open: boolean; onOpenChange: (v: boolean) => void; o: Order }) {
+  const licensed = useLicensed()
   const setStatus = useSetStatus(o.id)
   const [ref, setRef] = useState(o.paymentRef ?? '')
   const [err, setErr] = useState<string | null>(null)
@@ -328,7 +333,7 @@ function MarkPaidDialog({ open, onOpenChange, o }: { open: boolean; onOpenChange
           <ul className="grid gap-1 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
             <li>The customer earns {num(o.pointsEarned)} points.</li>
             {o.affiliate && <li>Partner commission is recorded for {o.affiliate.code}.</li>}
-            {o.kind === 'MEMBERSHIP' && <li>The membership tier is activated on their account.</li>}
+            {licensed.membership && o.kind === 'MEMBERSHIP' && <li>The membership tier is activated on their account.</li>}
           </ul>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={setStatus.isPending}>
@@ -539,7 +544,7 @@ function ItemsPanel({ o }: { o: Order }) {
         <dl className="ml-auto grid max-w-sm gap-0.5 text-sm">
           <TotalRow label="Subtotal" value={o.subtotalCents} />
           {o.tierDiscountCents > 0 && (
-            <TotalRow label="Quantity discount" value={-o.tierDiscountCents} info="Automatic discount for buying several units (quantity ladder or wholesale)." />
+            <TotalRow label="Quantity discount" value={-o.tierDiscountCents} info="Automatic discount from quantity discounts, bulk pricing or the Build a Box discount." />
           )}
           {o.couponDiscountCents > 0 && <TotalRow label={`Coupon ${o.couponCode ?? ''}`} value={-o.couponDiscountCents} />}
           {o.pointsDiscountCents > 0 && <TotalRow label={`Points (${num(o.pointsRedeemed)} pts)`} value={-o.pointsDiscountCents} />}
@@ -580,7 +585,7 @@ function TotalRow({ label, value, info, free }: { label: string; value: number; 
 // ---------- Side cards ----------
 
 function CustomerPanel({ o }: { o: Order }) {
-  const { membership } = useFeatures()
+  const { membershipOn: membership } = useLicensed()
   return (
     <Panel
       title="Customer"
@@ -789,6 +794,7 @@ function PaymentPanel({ o }: { o: Order }) {
 
 function PartnerPanel({ o }: { o: Order }) {
   const c = o.commission
+  const licensed = useLicensed()
   return (
     <Panel
       title="Partner"
@@ -824,7 +830,9 @@ function PartnerPanel({ o }: { o: Order }) {
         </dl>
       ) : (
         <p className="mt-2 text-xs text-muted-foreground">
-          No commission recorded yet. It is created when the order is paid (only for approved partners, not for memberships).
+          {licensed.membership
+            ? 'No commission recorded yet. It is created when the order is paid (only for approved partners, not for memberships).'
+            : 'No commission recorded yet. It is created when the order is paid, for approved partners, on the order types that earn commission in Settings.'}
         </p>
       )}
     </Panel>

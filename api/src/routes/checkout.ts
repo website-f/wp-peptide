@@ -47,6 +47,9 @@ async function startPayment(order: Order, method: PaymentMethod) {
   }
 }
 
+/** The free item packed with every box, from settings (empty = none). */
+export const boxExtras = (item: string) => (item.trim() ? [{ name: item.trim(), variantLabel: 'Included with your box', quantity: 1, unitPriceCents: 0 }] : [])
+
 async function checkPaymentMethod(id: string) {
   const s = await getSettings()
   const m = s.paymentMethods.find((x) => x.id === id && x.enabled)
@@ -94,7 +97,8 @@ export async function checkoutRoutes(app: FastifyInstance) {
       })
       setSession(reply, user)
     }
-    const quote = await buildQuote({ ...body, user })
+    // Email is passed so per-customer and first-order code limits also apply to guests.
+    const quote = await buildQuote({ ...body, user, email: user?.email ?? body.email })
     if (body.couponCode && quote.couponError) throw badRequest(quote.couponError)
     const order = await createOrder({
       quote,
@@ -125,10 +129,14 @@ export async function checkoutRoutes(app: FastifyInstance) {
 
   app.post('/api/box', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
     const user = await requireUser(req)
-    const body = parse(contactSchema.extend({ items: itemsSchema }), req.body)
+    const body = parse(
+      contactSchema.extend({ items: itemsSchema, couponCode: z.string().max(40).nullish(), refCode: z.string().max(40).nullish() }),
+      req.body,
+    )
     const method = await checkPaymentMethod(body.paymentMethod)
     const s = await getSettings()
-    const quote = await buildQuote({ items: body.items, mode: 'box', user })
+    const quote = await buildQuote({ items: body.items, mode: 'box', user, couponCode: body.couponCode, refCode: body.refCode })
+    if (body.couponCode && quote.couponError) throw badRequest(quote.couponError)
     const next = new Date()
     next.setMonth(next.getMonth() + 1)
     const sub = await db.subscription.create({
@@ -138,7 +146,8 @@ export async function checkoutRoutes(app: FastifyInstance) {
         name: body.name,
         shippingAddress: body.address,
         items: quote.lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity, name: l.name, variantLabel: l.variantLabel })),
-        priceCents: quote.totalCents,
+        // The recurring price is before any one-off code used on the first box.
+        priceCents: quote.totalCents + quote.couponDiscountCents,
         commitMonths: s.box.commitMonths,
         boxesShipped: 1,
         nextShipAt: next,
@@ -156,7 +165,7 @@ export async function checkoutRoutes(app: FastifyInstance) {
       customerNote: body.note,
       subscriptionId: sub.id,
       meta: { box: 1 },
-      extraItems: [{ name: 'Bacteriostatic Water', variantLabel: 'Included with your box', quantity: 1, unitPriceCents: 0 }],
+      extraItems: boxExtras(s.box.includedItem),
     })
     return { number: order.number, accessKey: order.accessKey, subscriptionId: sub.id, ...(await startPayment(order, method)) }
   })

@@ -62,7 +62,7 @@ function MembershipPage() {
 
       <section className="container-x grid gap-4 pb-20 md:grid-cols-2 xl:grid-cols-4">
         {ORDER.map((t) => {
-          const price = t === 'MEMBER' ? 0 : billing === 'yearly' ? s?.membership[t].yearlyCents : s?.membership[t].monthlyCents
+          const price = t === 'MEMBER' ? 0 : billing === 'yearly' ? s?.membership?.[t].yearlyCents : s?.membership?.[t].monthlyCents
           const isCurrent = current === t
           const popular = t === 'INSIDER'
           return (
@@ -125,7 +125,7 @@ function MembershipPage() {
       <section className="border-y bg-surface">
         <div className="container-x grid gap-8 py-16 md:grid-cols-3">
           {[
-            ['How points work', `Points are calculated after discounts and before shipping. 100 points = ${money(100)} off your next order.`],
+            ['How points work', `Points are calculated after discounts and before shipping. 100 points = ${money(s?.points.valueCentsPer100 ?? 100)} off your next order.`],
             ['Points expire', `Points stay valid for ${s?.points.expiryMonths ?? 12} months from the day they post. Cancel your plan and you keep them.`],
             ['Billing', 'Plans are paid through ToyyibPay by FPX or card. Each period is a separate payment, so nothing renews without you.'],
           ].map(([k, v]) => (
@@ -158,7 +158,7 @@ function JoinDialog({ tier, billing, onClose }: { tier: Paid | null; billing: 'm
     onError: (e) => toast.error(errorMessage(e)),
   })
   if (!tier) return null
-  const price = billing === 'yearly' ? s?.membership[tier].yearlyCents : s?.membership[tier].monthlyCents
+  const price = billing === 'yearly' ? s?.membership?.[tier].yearlyCents : s?.membership?.[tier].monthlyCents
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">

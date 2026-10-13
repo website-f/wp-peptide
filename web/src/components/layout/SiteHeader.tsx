@@ -5,7 +5,7 @@ import { Logo } from '@/components/brand/Logo'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { cartCount, useCart } from '@/lib/cart'
-import { useFeatures, useMe, useSettings } from '@/lib/queries'
+import { useFeatures, useMe, usePrograms } from '@/lib/queries'
 import { useTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 
@@ -19,18 +19,6 @@ export const NAV = [
   { to: '/contact', label: 'Contact' },
 ]
 
-export function AnnouncementBar() {
-  const { data } = useSettings()
-  if (!data?.announcement) return <div className="h-9 bg-gold/90" aria-hidden />
-  return (
-    <div className="bg-gold text-primary-foreground">
-      <p className="container-x flex min-h-9 items-center justify-center py-2 text-center text-[11.5px] leading-snug font-medium tracking-wide sm:text-[13px]">
-        {data.announcement}
-      </p>
-    </div>
-  )
-}
-
 export function SiteHeader() {
   const [menu, setMenu] = useState(false)
   const items = useCart((s) => s.items)
@@ -40,7 +28,13 @@ export function SiteHeader() {
   const location = useLocation()
   const count = cartCount(items)
   const features = useFeatures()
-  const nav = NAV.filter((n) => n.to !== '/membership' || features.membership)
+  const programs = usePrograms()
+  const hidden = new Set([
+    ...(features.membership ? [] : ['/membership']),
+    ...(programs.box ? [] : ['/build-a-box']),
+    ...(programs.bulk ? [] : ['/bulk']),
+  ])
+  const nav = NAV.filter((n) => !hidden.has(n.to))
   const user = me?.user
 
   return (

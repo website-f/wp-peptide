@@ -7,6 +7,7 @@ import { ProductCard, ProductCardSkeleton } from '@/components/product/ProductCa
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { tierSentence } from '@/lib/content'
 import { useCategories, useProducts, useSettings } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 
@@ -45,17 +46,12 @@ export default function Shop() {
   }
 
   const products = useProducts({ q: params.get('q') ?? undefined, category: category || undefined, sort })
-  const tiers = settings?.tiers ?? []
 
   return (
     <>
       <PageHeader
         title="Products"
-        intro={
-          tiers.length
-            ? `Three of the same compound is ${tiers[0].pct}% off, five is ${tiers[1]?.pct ?? tiers[0].pct}%, ten is ${tiers.at(-1)!.pct}%. Every lot ships with its certificate.`
-            : 'Every lot ships with its certificate.'
-        }
+        intro={`${tierSentence(settings) ?? ''} Every lot ships with its certificate.`.trim()}
       />
 
       <div className="sticky top-16 z-30 border-y bg-background/85 backdrop-blur-xl">

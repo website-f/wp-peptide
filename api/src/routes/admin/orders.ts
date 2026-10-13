@@ -8,6 +8,8 @@ import { ALLOWED, createOrder, setOrderStatus } from '../../lib/orders.js'
 import { buildQuote } from '../../lib/pricing.js'
 import { reconcile } from '../../lib/toyyibpay.js'
 import { mailOrderEvent } from '../../lib/mailer.js'
+import { getSettings } from '../../lib/settings.js'
+import { boxExtras } from '../checkout.js'
 
 const STATUSES = ['PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REFUNDED'] as const
 
@@ -161,7 +163,7 @@ export async function adminOrderRoutes(app: FastifyInstance) {
       paymentMethod: (await db.order.findFirst({ where: { subscriptionId: sub.id }, orderBy: { createdAt: 'desc' }, select: { paymentMethod: true } }))?.paymentMethod ?? 'toyyibpay',
       subscriptionId: sub.id,
       meta: { box: sub.boxesShipped + 1 },
-      extraItems: [{ name: 'Bacteriostatic Water', variantLabel: 'Included with your box', quantity: 1, unitPriceCents: 0 }],
+      extraItems: boxExtras((await getSettings()).box.includedItem),
     })
     // An overdue subscription moves to a month from today, not a month from the missed date.
     const next = new Date(Math.max(sub.nextShipAt.getTime(), Date.now()))

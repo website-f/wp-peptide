@@ -24,6 +24,17 @@ export function useFeatures() {
   return { membership: data?.features?.membership ?? false, loaded: Boolean(data) }
 }
 
+/** Which buying programs the admin has switched on (Admin > Settings). */
+export function usePrograms() {
+  const { data } = useSettings()
+  return {
+    loaded: Boolean(data),
+    tiers: Boolean(data?.tierPricing?.enabled && data.tiers.length > 0),
+    bulk: data?.bulk?.enabled ?? true,
+    box: data?.box?.enabled ?? true,
+  }
+}
+
 export function useMe() {
   return useQuery({ queryKey: ['me'], queryFn: () => api.get<Me>('/api/auth/me'), staleTime: 60_000 })
 }

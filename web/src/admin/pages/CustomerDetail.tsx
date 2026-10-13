@@ -23,7 +23,7 @@ import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api, errorMessage } from '@/lib/api'
 import { currencySymbol, date, money, num, relative } from '@/lib/format'
-import { useFeatures, useMe, useSettings } from '@/lib/queries'
+import { useMe, useSettings } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import {
   AffiliateStatusBadge,
@@ -44,7 +44,8 @@ import {
   TierBadge,
 } from '../components/kit'
 import type { CustomerDetail as Customer, Tier } from '../lib/types'
-import { KIND_LABEL, TIER_LABEL, isoDay, useInvalidateAdmin } from '../lib/utils'
+import { useLicensed } from '../lib/queries'
+import { TIER_LABEL, isoDay, kindLabel, useInvalidateAdmin } from '../lib/utils'
 
 const TIERS: Tier[] = ['MEMBER', 'INSIDER', 'VIP', 'FOUNDER']
 const TH = 'text-xs font-medium text-muted-foreground'
@@ -70,7 +71,9 @@ export default function CustomerDetail() {
 
 function CustomerView({ c }: { c: Customer }) {
   const [editOpen, setEditOpen] = useState(false)
-  const { membership } = useFeatures()
+  // Nothing about tiers appears unless the membership add-on is licensed.
+  const licensed = useLicensed()
+  const membership = licensed.membershipOn
   const avgCents = c.stats.orders > 0 ? Math.round(c.stats.spentCents / c.stats.orders) : 0
 
   return (
@@ -128,7 +131,7 @@ function CustomerView({ c }: { c: Customer }) {
         </div>
         <div className="min-w-0 space-y-6">
           {c.affiliate && <PartnerCard affiliate={c.affiliate} />}
-          {membership ? <MembershipCard c={c} /> : <MembershipOffCard c={c} />}
+          {licensed.membership && (membership ? <MembershipCard c={c} /> : <MembershipOffCard c={c} />)}
           <PointsAdjustCard c={c} />
           <AdminAccessCard c={c} />
         </div>
@@ -142,6 +145,7 @@ function CustomerView({ c }: { c: Customer }) {
 // ---------- Lists ----------
 
 function OrdersPanel({ c }: { c: Customer }) {
+  const licensed = useLicensed()
   const navigate = useNavigate()
   return (
     <Panel
@@ -160,7 +164,7 @@ function OrdersPanel({ c }: { c: Customer }) {
                   <div className="min-w-0">
                     <Num className="text-sm font-medium">{o.number}</Num>
                     <p className="text-xs text-muted-foreground">
-                      {date(o.createdAt)} · {KIND_LABEL[o.kind]}
+                      {date(o.createdAt)} · {kindLabel(o.kind, licensed.membership)}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
@@ -191,7 +195,7 @@ function OrdersPanel({ c }: { c: Customer }) {
                       </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{date(o.createdAt)}</TableCell>
-                    <TableCell className="text-muted-foreground">{KIND_LABEL[o.kind]}</TableCell>
+                    <TableCell className="text-muted-foreground">{kindLabel(o.kind, licensed.membership)}</TableCell>
                     <TableCell>
                       <OrderStatusBadge status={o.status} />
                     </TableCell>

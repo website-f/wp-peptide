@@ -13,7 +13,8 @@ import { date, money, moneyExact, num } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { DefRow, ErrorState, InfoTip, Kpi, Num, PageHeader, Panel, Segmented, TextInput } from '../components/kit'
 import type { FinanceData, OrderKind } from '../lib/types'
-import { KIND_LABEL, isoDay, paymentLabel } from '../lib/utils'
+import { useAdminSettings, useLicensed } from '../lib/queries'
+import { isoDay, kindLabel, paymentLabel } from '../lib/utils'
 
 type Preset = 'month' | 'lastMonth' | '30' | '90' | 'year' | 'custom'
 
@@ -166,6 +167,8 @@ export default function Finance() {
 }
 
 function FinanceBody({ data }: { data: FinanceData }) {
+  const licensed = useLicensed()
+  const pointValue = useAdminSettings().data?.settings.points.valueCentsPer100
   const s = data.summary
   const discounts = s.tierDiscountCents + s.couponDiscountCents + s.pointsDiscountCents
   const keptNetSales = s.grossProfitCents + s.cogsCents
@@ -183,7 +186,7 @@ function FinanceBody({ data }: { data: FinanceData }) {
         <div className="min-w-0 rounded-xl border bg-card p-4">
           <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <span className="truncate">Discounts</span>
-            <InfoTip>Everything taken off the full price: volume pricing (quantity tiers, bulk and Build a Box), coupon and partner codes, and points customers redeemed.</InfoTip>
+            <InfoTip>Everything taken off the full price: automatic pricing (quantity discounts, bulk and Build a Box), coupon and partner codes, and points customers redeemed.</InfoTip>
           </div>
           <div className="mt-2 truncate font-mono text-2xl font-medium tracking-tight tabular-nums">{money(discounts)}</div>
           <dl className="mt-1.5 grid gap-0.5 text-xs text-muted-foreground">
@@ -248,7 +251,7 @@ function FinanceBody({ data }: { data: FinanceData }) {
               <DefRow label="Commissions owed" info="Partner commissions not paid out yet (pending and approved), across all time. Pending ones become approved when the order is delivered.">
                 <Num>{moneyExact(s.commissionsOwedCents)}</Num>
               </DefRow>
-              <DefRow label="Points liability" info="Points customers hold right now that they can redeem as discounts. 1 point is worth 1 sen, so 100 points = RM1.">
+              <DefRow label="Points liability" info={`Points customers hold right now that they can redeem as discounts.${pointValue === undefined ? '' : ` 100 points are worth ${money(pointValue)} (set in Settings).`}`}>
                 <Num>{moneyExact(s.pointsLiabilityCents)}</Num>
               </DefRow>
               <DefRow label="Payouts paid in period" info="Commission payouts you marked as paid during this period.">
@@ -263,7 +266,7 @@ function FinanceBody({ data }: { data: FinanceData }) {
           </Panel>
           <ShareList
             title="By order type"
-            rows={data.byKind.map((r) => ({ ...r, label: KIND_LABEL[r.key as OrderKind] ?? r.key }))}
+            rows={data.byKind.map((r) => ({ ...r, label: kindLabel(r.key as OrderKind, licensed.membership) }))}
             info="Collected amount and order count by kind of order. Includes orders later cancelled or refunded."
           />
           <ShareList
@@ -346,7 +349,7 @@ type PlRow =
 function ProfitAndLoss({ s, keptNetSales }: { s: FinanceData['summary']; keptNetSales: number }) {
   const sales: PlRow[] = [
     { kind: 'line', label: 'Gross sales', cents: s.grossSalesCents, info: 'Full list price of the products sold.' },
-    { kind: 'line', label: 'Volume discounts', sign: '-', cents: s.tierDiscountCents, info: 'Quantity tier, bulk (wholesale) and Build a Box pricing.' },
+    { kind: 'line', label: 'Volume discounts', sign: '-', cents: s.tierDiscountCents, info: 'Quantity discounts, bulk order and Build a Box pricing.' },
     { kind: 'line', label: 'Coupon and partner code discounts', sign: '-', cents: s.couponDiscountCents },
     { kind: 'line', label: 'Points redeemed', sign: '-', cents: s.pointsDiscountCents },
     { kind: 'total', label: 'Net sales', cents: s.netSalesCents },

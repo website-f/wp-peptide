@@ -1,12 +1,12 @@
 import { CheckIcon, DropIcon, LockSimpleIcon, PlusIcon, SpinnerIcon, XIcon } from '@phosphor-icons/react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { motion, useReducedMotion } from 'motion/react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation } from 'react-router'
+import { Link, Navigate, useLocation } from 'react-router'
 import { toast } from 'sonner'
 import { ProductImage } from '@/components/brand/ProductImage'
 import { PageHeader } from '@/components/brand/bits'
-import { ContactFields, emptyContact, FormSection, PaymentChoice, toAddress, validateContact, type ContactForm } from '@/components/checkout/Fields'
+import { CodeField, ContactFields, emptyContact, FormSection, PaymentChoice, toAddress, validateContact, type ContactForm } from '@/components/checkout/Fields'
 import { ResearchDisclaimer } from '@/components/layout/SiteFooter'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -14,7 +14,8 @@ import { Label } from '@/components/ui/label'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { api, errorMessage } from '@/lib/api'
 import { money, moneyExact } from '@/lib/format'
-import { useMe, useProducts, useSettings } from '@/lib/queries'
+import { useMe, usePrograms, useProducts, useSettings } from '@/lib/queries'
+import { getRefCode } from '@/lib/referral'
 import type { PlaceOrderResult, ProductCard, Quote } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -31,11 +32,21 @@ interface Pick {
 const PICKS_KEY = 'kyvo-box-picks'
 
 export default function BuildBox() {
+  const programs = usePrograms()
+  // Switched off in Admin > Settings: the page is not reachable.
+  if (programs.loaded && !programs.box) return <Navigate to="/shop" replace />
+  return <BuildBoxPage />
+}
+
+function BuildBoxPage() {
   const { data: settings } = useSettings()
   const { data: me } = useMe()
   const products = useProducts({ box: true })
   const reduce = useReducedMotion()
   const slots = settings?.box.slots ?? 4
+  const included = settings?.box.includedItem.trim() ?? ''
+  const freeShip = settings?.box.freeShipping ?? true
+  const perks = [...(freeShip ? ['free tracked delivery'] : []), ...(included ? [included.toLowerCase()] : [])]
   const pct = settings?.box.pct ?? 40
   const [picks, setPicks] = useState<Pick[]>(() => {
     try {
@@ -67,10 +78,10 @@ export default function BuildBox() {
     <>
       <PageHeader
         title="Build your box"
-        intro={`Pick any ${slots} research compounds and we pack them into one monthly box, ${pct}% off list price with free tracked delivery and bacteriostatic water included.`}
+        intro={`Pick any ${slots} research compounds and we pack them into one monthly box, ${pct}% off list price${perks.length ? ` with ${perks.join(' and ')} included` : ''}.`}
       >
         <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-          {[`${pct}% off, locked for your subscription`, 'Bacteriostatic water included', 'Every lot third-party tested'].map((t) => (
+          {[`${pct}% off, locked for your subscription`, ...(included ? [`${included} included`] : []), ...(freeShip ? ['Free tracked delivery'] : []), 'Every lot third-party tested'].map((t) => (
             <li key={t} className="flex items-center gap-2">
               <CheckIcon weight="bold" className="size-4 text-gold-ink" /> {t}
             </li>
@@ -210,6 +221,10 @@ function BoxSummary({
   commit: number
   onContinue?: () => void
 }) {
+  const { data: settings } = useSettings()
+  const included = settings?.box.includedItem.trim() ?? ''
+  // Delivery follows the box settings: free, or the normal flat rate below the free-shipping threshold.
+  const shippingCents = !settings || settings.box.freeShipping || boxCents >= settings.shipping.freeThresholdCents ? 0 : settings.shipping.flatCents
   return (
     <div className="rounded-xl border bg-card p-5">
       <div className="flex items-baseline justify-between">
@@ -240,11 +255,13 @@ function BoxSummary({
             </li>
           )
         })}
-        <li className="flex items-center gap-3 rounded-lg bg-surface px-3 py-2.5 text-[13px]">
-          <DropIcon className="size-5 text-gold-ink" />
-          <span className="flex-1">Bacteriostatic water</span>
-          <span className="font-mono text-gold-ink">Included</span>
-        </li>
+        {included && (
+          <li className="flex items-center gap-3 rounded-lg bg-surface px-3 py-2.5 text-[13px]">
+            <DropIcon className="size-5 text-gold-ink" />
+            <span className="flex-1">{included}</span>
+            <span className="font-mono text-gold-ink">Included</span>
+          </li>
+        )}
       </ul>
       <dl className="mt-4 space-y-1.5 border-t pt-4 text-sm">
         <div className="flex justify-between">
@@ -257,11 +274,11 @@ function BoxSummary({
         </div>
         <div className="flex justify-between">
           <dt className="text-muted-foreground">Delivery</dt>
-          <dd className="font-mono">Free</dd>
+          <dd className="font-mono">{shippingCents === 0 ? 'Free' : money(shippingCents)}</dd>
         </div>
         <div className="flex items-baseline justify-between border-t pt-2.5">
           <dt className="font-display text-xl font-semibold uppercase">Monthly</dt>
-          <dd className="font-mono text-xl font-semibold">{moneyExact(boxCents)}</dd>
+          <dd className="font-mono text-xl font-semibold">{moneyExact(boxCents + shippingCents)}</dd>
         </div>
       </dl>
       <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
@@ -308,7 +325,13 @@ function BoxCheckout({ picks, onDone }: { picks: Pick[]; onDone: () => void }) {
   }, [settings, method])
 
   const items = useMemo(() => picks.map((p) => ({ variantId: p.variantId, quantity: 1 })), [picks])
-  const quote = useQuery({ queryKey: ['box-quote', items], queryFn: () => api.post<Quote>('/api/cart/quote', { items, mode: 'box' }) })
+  const [code, setCode] = useState('')
+  const quote = useQuery({
+    queryKey: ['box-quote', items, code],
+    queryFn: () => api.post<Quote>('/api/cart/quote', { items, mode: 'box', couponCode: code || null, refCode: getRefCode() }),
+    placeholderData: keepPreviousData,
+  })
+  const codeOk = !code || !quote.data?.couponError
 
   const start = useMutation({
     mutationFn: () =>
@@ -319,6 +342,8 @@ function BoxCheckout({ picks, onDone }: { picks: Pick[]; onDone: () => void }) {
         phone: form.phone.trim(),
         address: toAddress(form),
         paymentMethod: method,
+        couponCode: code || undefined,
+        refCode: getRefCode(),
         confirmResearch: true,
       }),
     onSuccess: (r) => {
@@ -353,6 +378,23 @@ function BoxCheckout({ picks, onDone }: { picks: Pick[]; onDone: () => void }) {
       </FormSection>
       <FormSection title="Payment">
         <PaymentChoice methods={settings?.paymentMethods ?? []} value={method} onChange={setMethod} />
+        <div className="mt-4">
+          <CodeField id="box-code" applied={code} label={quote.data?.coupon?.label ?? null} error={quote.data?.couponError ?? null} onApply={setCode} onRemove={() => setCode('')} />
+        </div>
+        {quote.data && (
+          <dl className="mt-4 space-y-1.5 border-t pt-4 text-sm">
+            {quote.data.couponDiscountCents > 0 && (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">{quote.data.coupon?.label}</dt>
+                <dd className="font-mono text-gold-ink">-{moneyExact(quote.data.couponDiscountCents)}</dd>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Delivery</dt>
+              <dd className="font-mono">{quote.data.shippingCents === 0 ? 'Free' : moneyExact(quote.data.shippingCents)}</dd>
+            </div>
+          </dl>
+        )}
       </FormSection>
       <div className="flex items-start gap-3 rounded-xl border border-gold/30 bg-gold/5 p-4">
         <Checkbox id="box-confirm" checked={confirm} onCheckedChange={(v) => setConfirm(v === true)} className="mt-0.5" />
@@ -361,7 +403,7 @@ function BoxCheckout({ picks, onDone }: { picks: Pick[]; onDone: () => void }) {
         </Label>
       </div>
       {quote.isError && <p className="text-sm text-destructive">{errorMessage(quote.error)}</p>}
-      <Button type="submit" size="lg" className="h-14 text-base" disabled={start.isPending || !quote.data}>
+      <Button type="submit" size="lg" className="h-14 text-base" disabled={start.isPending || !quote.data || !codeOk}>
         {start.isPending ? <SpinnerIcon className="size-5 animate-spin" /> : <LockSimpleIcon className="size-5" />}
         Pay first box {quote.data ? moneyExact(quote.data.totalCents) : ''}
       </Button>

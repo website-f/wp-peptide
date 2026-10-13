@@ -6,8 +6,8 @@ import { AccountOrders } from '@/components/account/AccountOrders'
 import { AccountPoints } from '@/components/account/AccountPoints'
 import { AccountProfile } from '@/components/account/AccountProfile'
 import { RequireUser, firstName } from '@/components/account/bits'
-import { date, moneyExact, num } from '@/lib/format'
-import { useFeatures } from '@/lib/queries'
+import { date, moneyExact, num, pointsCents } from '@/lib/format'
+import { useFeatures, useSettings } from '@/lib/queries'
 import { TIER_LABEL, type Me } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -35,6 +35,7 @@ function greeting() {
 function AccountView({ me, tab }: { me: Me & { user: NonNullable<Me['user']> }; tab: TabKey }) {
   const u = me.user
   const features = useFeatures()
+  const { data: settings } = useSettings()
   const isAdmin = u.role === 'ADMIN'
 
   return (
@@ -79,7 +80,7 @@ function AccountView({ me, tab }: { me: Me & { user: NonNullable<Me['user']> }; 
             <div className="text-right">
               <p className="text-xs text-muted-foreground uppercase">Points</p>
               <p className="mt-1 font-mono text-2xl font-medium tabular-nums">{num(u.pointsBalance)}</p>
-              <p className="font-mono text-xs text-muted-foreground tabular-nums">= {moneyExact(u.pointsBalance)}</p>
+              <p className="font-mono text-xs text-muted-foreground tabular-nums">= {moneyExact(pointsCents(u.pointsBalance, settings?.points.valueCentsPer100))}</p>
             </div>
           </div>
           <Link

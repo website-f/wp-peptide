@@ -10,7 +10,8 @@ import { api } from '@/lib/api'
 import { date, moneyExact, plural, relative } from '@/lib/format'
 import { ErrorState, Num, OrderStatusBadge, PageHeader, Pager, Panel, Pill, RowsSkeleton, SearchInput, Segmented } from '../components/kit'
 import type { OrderKind, OrderList, OrderStatus } from '../lib/types'
-import { KIND_LABEL, paymentLabel, useDebounced } from '../lib/utils'
+import { useLicensed } from '../lib/queries'
+import { kindLabel, orderKinds, paymentLabel, useDebounced } from '../lib/utils'
 
 type Filter = 'ALL' | 'PENDING_PAYMENT' | 'OPEN' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED' | 'REFUNDED'
 
@@ -43,7 +44,10 @@ export default function Orders() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const status = (FILTERS.some((f) => f.value === params.get('status')) ? params.get('status') : 'ALL') as Filter
-  const kind = (params.get('kind') ?? 'ALL') as OrderKind | 'ALL'
+  const licensed = useLicensed()
+  const kinds = orderKinds(licensed.membership)
+  const rawKind = params.get('kind') as OrderKind | null
+  const kind: OrderKind | 'ALL' = rawKind && kinds.includes(rawKind) ? rawKind : 'ALL'
   const page = Math.max(1, Number(params.get('page')) || 1)
   const [search, setSearch] = useState(params.get('q') ?? '')
   const q = useDebounced(search.trim(), 300)
@@ -99,9 +103,9 @@ export default function Orders() {
             </SelectTrigger>
             <SelectContent position="popper" align="end">
               <SelectItem value="ALL">All order types</SelectItem>
-              {(Object.keys(KIND_LABEL) as OrderKind[]).map((k) => (
+              {kinds.map((k) => (
                 <SelectItem key={k} value={k}>
-                  {KIND_LABEL[k]}
+                  {kindLabel(k, licensed.membership)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -152,7 +156,7 @@ export default function Orders() {
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       <OrderStatusBadge status={o.status} />
-                      {o.kind !== 'STANDARD' && <Pill dot={false}>{KIND_LABEL[o.kind]}</Pill>}
+                      {o.kind !== 'STANDARD' && <Pill dot={false}>{kindLabel(o.kind, licensed.membership)}</Pill>}
                       {o.partner && (
                         <Pill tone="gold" dot={false}>
                           via {o.partner}
@@ -205,7 +209,7 @@ export default function Orders() {
                           {o.partner && <span className="text-[11px] text-muted-foreground">Partner: {o.partner}</span>}
                         </div>
                       </TableCell>
-                      <TableCell className="hidden text-muted-foreground lg:table-cell">{KIND_LABEL[o.kind]}</TableCell>
+                      <TableCell className="hidden text-muted-foreground lg:table-cell">{kindLabel(o.kind, licensed.membership)}</TableCell>
                       <TableCell className="hidden text-muted-foreground xl:table-cell">{paymentLabel(o.paymentMethod)}</TableCell>
                       <TableCell className="pr-4 text-right">
                         <Num className="font-medium">{moneyExact(o.totalCents)}</Num>

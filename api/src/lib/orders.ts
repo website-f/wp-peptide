@@ -53,8 +53,12 @@ export async function createOrder(a: CreateOrderArgs) {
       })
       if (r.count === 0) throw badRequest('Your points balance changed. Please review your order.')
     }
-    if (quote.coupon && quote.couponDiscountCents > 0) {
-      await tx.coupon.updateMany({ where: { code: quote.coupon.code }, data: { uses: { increment: 1 } } })
+    // Store coupons: take one use, re-checking the total limit inside the transaction so
+    // two shoppers cannot both claim the last use.
+    if (quote.couponId) {
+      const c = await tx.coupon.findUniqueOrThrow({ where: { id: quote.couponId } })
+      if (c.maxUses !== null && c.uses >= c.maxUses) throw badRequest('That code has just reached its usage limit. Remove it to continue.')
+      await tx.coupon.update({ where: { id: c.id }, data: { uses: { increment: 1 } } })
     }
 
     const order = await tx.order.create({
@@ -77,6 +81,7 @@ export async function createOrder(a: CreateOrderArgs) {
         totalCents: quote.totalCents,
         costCents: quote.costCents,
         couponCode: quote.coupon?.code ?? null,
+        couponCounted: Boolean(quote.couponId),
         affiliateId: quote.affiliate?.id ?? null,
         pointsRedeemed: quote.pointsRedeemed,
         pointsEarned: a.user ? quote.pointsEarned : 0,
@@ -187,7 +192,10 @@ async function onPaid(tx: Tx, orderId: string) {
     await tx.user.update({ where: { id: order.user.id }, data: { pointsBalance: { increment: order.pointsEarned } } })
   }
 
-  if (order.affiliate && order.affiliate.status === 'APPROVED' && order.kind !== 'MEMBERSHIP') {
+  // Which order types pay commission is a store setting (membership fees never do).
+  const commissionable =
+    order.kind === 'STANDARD' || (order.kind === 'WHOLESALE' && s.affiliate.commissionOnBulk) || (order.kind === 'BOX' && s.affiliate.commissionOnBox)
+  if (order.affiliate && order.affiliate.status === 'APPROVED' && commissionable) {
     const base = order.subtotalCents - order.tierDiscountCents - order.couponDiscountCents - order.pointsDiscountCents
     const rate = order.affiliate.commissionRate
     await tx.commission.upsert({
@@ -217,6 +225,11 @@ async function onPaid(tx: Tx, orderId: string) {
 
 async function onReversed(tx: Tx, orderId: string, wasPaid: boolean, why: string) {
   const order = await tx.order.findUniqueOrThrow({ where: { id: orderId }, include: { items: true } })
+  // Give the coupon use back so a cancelled or refunded order does not burn a limited code.
+  if (order.couponCounted && order.couponCode) {
+    await tx.coupon.updateMany({ where: { code: order.couponCode, uses: { gt: 0 } }, data: { uses: { decrement: 1 } } })
+    await tx.order.update({ where: { id: orderId }, data: { couponCounted: false } })
+  }
   for (const it of order.items) {
     // Variants with order history are retired, never deleted, so the row still exists.
     if (it.variantId) await tx.variant.update({ where: { id: it.variantId }, data: { stock: { increment: it.quantity } } })
@@ -254,8 +267,9 @@ async function onReversed(tx: Tx, orderId: string, wasPaid: boolean, why: string
  * re-checked with ToyyibPay first so a late payment is never cancelled.
  */
 export async function expireUnpaidOrders(reconcileFn: (o: Order) => Promise<unknown>, log: (msg: string) => void) {
-  const gatewayCutoff = new Date(Date.now() - 3 * 86400_000) // ToyyibPay bills expire after 3 days
-  const manualCutoff = new Date(Date.now() - 7 * 86400_000)
+  const s = await getSettings()
+  const gatewayCutoff = new Date(Date.now() - s.orders.unpaidExpiryDaysOnline * 86400_000)
+  const manualCutoff = new Date(Date.now() - s.orders.unpaidExpiryDaysManual * 86400_000)
   const stale = await db.order.findMany({
     where: {
       status: 'PENDING_PAYMENT',

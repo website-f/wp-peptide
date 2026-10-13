@@ -16,15 +16,25 @@ Information architecture follows rebirthlabs.org; brand, colours, copy and image
 
 **Admin** (`/admin`): dashboard (KPIs vs previous period, needs-attention queue, revenue chart, top products, low stock), orders (filters, full detail, status actions with tracking, ToyyibPay re-check), products (variants with cost/stock, image upload, lab data), COA library management, customers (tiers, points adjustments), partners (applications, commission rates, codes, commissions, payouts), finance (P&L, refunds, COGS, commissions, points liability, product margins, CSV export), Build a Box subscriptions, coupons, inbox + newsletter export, store settings (shipping, tiers, wholesale, box, partner terms, points, membership prices, payment methods).
 
-**Money rules (server-side, single source of truth: `api/src/lib/pricing.ts`)**
-- Quantity tiers per compound across sizes: 3 = 30%, 5 = 35%, 10 = 40% (editable).
-- Wholesale per product: 10 = 40%, 50 = 50%, 100 = 55%; does not stack with tiers, codes or points multipliers.
-- Partner codes give shoppers 10% off and attribute the order; `?ref=code` links attribute for 30 days (last click wins). No self-referral.
-- Commission 20% of the order after discounts, excluding shipping/tax. Created when paid, becomes withdrawable when delivered, voided on cancel/refund (also pulled out of an unpaid payout request).
-- Partner payouts are bank transfers only. Partners give bank, account holder and account number when they apply; each payout request snapshots those details, the admin transfers manually and records the bank reference, and partners are emailed when their bank details change.
-- Membership (Insider/VIP/Founder) is behind a switch in Admin > Settings > Programs, off by default. While off, the page, nav link and tier perks are hidden and everyone earns the base points rate.
-- Points: 2.5 / 3.5 / 5 / 10 per RM1 by tier, 1 point = 1 sen, redeem up to 50% of an order, +500 bonus over RM800.
-- Stock is reserved atomically at checkout and released on cancel/refund. Unpaid orders auto-cancel (3 days for ToyyibPay, 7 days for manual methods) after a final gateway check.
+**Money rules: everything is a setting.** No price, percentage, threshold or limit is hardcoded. The pricing engine (`api/src/lib/pricing.ts`) reads Admin > Settings and each coupon record, and the shop renders its copy from the same values.
+
+| Admin > Settings | What it controls (defaults in brackets) |
+|---|---|
+| Quantity discounts | on/off, count per compound or per order, ladder (3 = 30%, 5 = 35%, 10 = 40%), "add N more" hint distance |
+| Bulk orders | on/off, count per product or per order, ladder (10 = 40%, 50 = 50%, 100 = 55%), free shipping, earn points, max units per order |
+| Build a Box | on/off, slots (4), % off (40), minimum months (3), free shipping, earn points, free included item (Bacteriostatic Water) |
+| Partner program | commission % (20), attribution days (30), partner-code shopper discount (10%), minimum payout (RM200), partner-code discount on bulk / box, partner code combines with quantity discounts, commission on bulk / box |
+| Points | value of 100 points (RM1), points per RM1 (2.5), bonus over RM800 (+500), max % of an order payable with points (50), expiry (12 months), points combinable with codes |
+| Orders and stock | unpaid-order expiry for online payment (3 days, also the ToyyibPay bill life) and manual payment (7 days), low-stock threshold (5) |
+| Shipping and tax | flat fee (RM15), free-shipping threshold (RM800), tax % |
+
+**Discount codes** (Admin > Coupons) each carry their own rules: percent, fixed amount or free shipping; percent cap; minimum spend; total uses; uses per customer (matched by account or email, guests included); start and end date; first order only; combine with quantity/bulk/box discounts or not; which order types (shop, bulk, Build a Box); whole order or selected products and categories. Uses are taken atomically at checkout and given back when an order is cancelled or refunded.
+
+**Partners**: `?ref=code` links attribute for the configured window (last click wins); no self-referral. Commission is created when a referred order is paid, becomes withdrawable on delivery, and is voided on cancel or refund (also pulled out of an unpaid payout request). Payouts are bank transfers only: each request snapshots the partner's bank details, the admin records the bank reference, and partners are emailed whenever their bank details change.
+
+**Membership** (Insider/VIP/Founder) is a licensed add-on, off by default and invisible to shoppers and admins alike. Set `ENABLE_MEMBERSHIP=true` in `.env` to unlock it; the code is kept intact.
+
+**Stock** is reserved atomically at checkout and released on cancel, refund or unpaid expiry (after a final ToyyibPay check).
 
 ## Run it locally
 

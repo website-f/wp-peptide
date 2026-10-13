@@ -56,3 +56,8 @@ export const num = (n: number) => n.toLocaleString('en-US')
 export function plural(n: number, one: string, many = `${one}s`) {
   return `${num(n)} ${n === 1 ? one : many}`
 }
+
+/** What a number of points is worth in cents, using settings.points.valueCentsPer100. */
+export function pointsCents(points: number, valueCentsPer100: number | undefined) {
+  return Math.floor((points * (valueCentsPer100 ?? 100)) / 100)
+}

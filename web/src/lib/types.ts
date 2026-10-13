@@ -9,25 +9,50 @@ export interface Ladder {
 
 export interface Settings {
   storeName: string
-  features: { membership: boolean }
+  /** Only present when the membership add-on is licensed. */
+  features?: { membership: boolean }
   supportEmail: string
   currency: { code: string; symbol: string; locale: string }
-  announcement: string
+  /** Top-of-page banner; only live (enabled, in-schedule) messages are sent to shoppers. */
+  banner: {
+    style: 'gold' | 'dark' | 'subtle'
+    rotateSeconds: number
+    dismissible: boolean
+    messages: { id: string; text: string; linkUrl: string; linkLabel: string }[]
+  }
   shipping: { flatCents: number; freeThresholdCents: number; carrier: string; cutoff: string }
   taxPct: number
+  tierPricing: { enabled: boolean; countBy: 'product' | 'order'; hintWithinUnits: number }
   tiers: Ladder[]
+  bulk: { enabled: boolean; countBy: 'product' | 'order'; freeShipping: boolean; earnPoints: boolean; maxUnitsPerOrder: number }
   wholesale: Ladder[]
-  box: { slots: number; pct: number; commitMonths: number }
-  affiliate: { defaultRate: number; cookieDays: number; couponPct: number; minPayoutCents: number }
+  box: { enabled: boolean; slots: number; pct: number; commitMonths: number; freeShipping: boolean; earnPoints: boolean; includedItem: string }
+  affiliate: {
+    defaultRate: number
+    cookieDays: number
+    couponPct: number
+    minPayoutCents: number
+    codeDiscountOnBulk: boolean
+    codeDiscountOnBox: boolean
+    codeStacksWithTiers: boolean
+    commissionOnBulk: boolean
+    commissionOnBox: boolean
+  }
+  discounts: { pointsWithCodes: boolean }
+  orders: { unpaidExpiryDaysOnline: number; unpaidExpiryDaysManual: number }
+  inventory: { lowStockThreshold: number }
   points: {
-    perDollar: Record<Tier, number>
+    valueCentsPer100: number
+    /** Only MEMBER is present unless the membership add-on is licensed. */
+    perDollar: Partial<Record<Tier, number>> & { MEMBER: number }
     bonusThresholdCents: number
     bonusPoints: number
     maxRedeemPct: number
     expiryMonths: number
-    founderYearlyBonus: number
+    founderYearlyBonus?: number
   }
-  membership: Record<Exclude<Tier, 'MEMBER'>, { monthlyCents: number; yearlyCents: number }>
+  /** Only present when the membership add-on is licensed. */
+  membership?: Record<Exclude<Tier, 'MEMBER'>, { monthlyCents: number; yearlyCents: number }>
   paymentMethods: { id: string; label: string; type: 'gateway' | 'manual'; instructions: string | null }[]
 }
 
@@ -137,7 +162,7 @@ export interface Quote {
   taxCents: number
   totalCents: number
   pointsEarned: number
-  coupon: { code: string; label: string } | null
+  coupon: { code: string; label: string; kind: 'store' | 'partner'; freeShipping: boolean } | null
   couponError: string | null
   partnerApplied: boolean
   freeShippingRemainingCents: number

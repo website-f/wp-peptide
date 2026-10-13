@@ -405,18 +405,35 @@ export interface SubscriptionRow {
   orders: { id: string; number: string; status: OrderStatus; createdAt: string }[]
 }
 
+export type CouponType = 'PERCENT' | 'FIXED' | 'FREE_SHIPPING'
+export type CouponMode = 'standard' | 'wholesale' | 'box'
+
 export interface Coupon {
   id: string
   code: string
-  type: 'PERCENT' | 'FIXED'
+  type: CouponType
+  /** PERCENT: whole percent. FIXED: cents. FREE_SHIPPING: 0. */
   value: number
   minSubtotal: number
+  /** Cap on a percent discount, in cents. Null = no cap. */
+  maxDiscountCents: number | null
   maxUses: number | null
+  maxUsesPerCustomer: number | null
   uses: number
+  startsAt: string | null
   expiresAt: string | null
   active: boolean
+  firstOrderOnly: boolean
+  /** False = only discounts items without a quantity, bulk or box discount. */
+  stackWithTiers: boolean
+  modes: CouponMode[]
+  productIds: string[]
+  categoryIds: string[]
   description: string | null
   createdAt: string
+  paidOrders: number
+  discountGivenCents: number
+  salesCents: number
 }
 
 export interface ContactMessage {
@@ -444,32 +461,72 @@ export interface PaymentMethodSetting {
   enabled: boolean
 }
 
+export type CountBy = 'product' | 'order'
+export interface LadderStep {
+  min: number
+  pct: number
+}
+
+/** The strip across the top of every shop page (Admin > Settings > Top banner). */
+export interface BannerSettings {
+  enabled: boolean
+  style: 'gold' | 'dark' | 'subtle'
+  rotateSeconds: number
+  dismissible: boolean
+  messages: { id: string; text: string; linkUrl: string; linkLabel: string; enabled: boolean; startsAt: string | null; endsAt: string | null }[]
+}
+
+/**
+ * Store settings as the admin API returns them. Optional add-ons (membership) are only
+ * present when this installation is licensed for them, so those keys are optional.
+ */
 export interface StoreSettings {
   storeName: string
-  /** Optional programs. Membership off = paid tiers have no effect and the Membership page is hidden. */
-  features: { membership: boolean }
+  /** Licensed add-on only. Membership off = paid tiers have no effect. */
+  features?: { membership: boolean }
   supportEmail: string
   currency: { code: string; symbol: string; locale: string }
-  announcement: string
+  /** Legacy single-line announcement, superseded by `banner`. */
+  announcement?: string
+  banner: BannerSettings
   shipping: { flatCents: number; freeThresholdCents: number; carrier: string; cutoff: string }
   taxPct: number
-  tiers: { min: number; pct: number }[]
-  wholesale: { min: number; pct: number }[]
-  box: { slots: number; pct: number; commitMonths: number }
-  affiliate: { defaultRate: number; cookieDays: number; couponPct: number; minPayoutCents: number }
+  tierPricing: { enabled: boolean; countBy: CountBy; hintWithinUnits: number }
+  tiers: LadderStep[]
+  bulk: { enabled: boolean; countBy: CountBy; freeShipping: boolean; earnPoints: boolean; maxUnitsPerOrder: number }
+  wholesale: LadderStep[]
+  box: { enabled: boolean; slots: number; pct: number; commitMonths: number; freeShipping: boolean; earnPoints: boolean; includedItem: string }
+  affiliate: {
+    defaultRate: number
+    cookieDays: number
+    couponPct: number
+    minPayoutCents: number
+    codeDiscountOnBulk: boolean
+    codeDiscountOnBox: boolean
+    codeStacksWithTiers: boolean
+    commissionOnBulk: boolean
+    commissionOnBox: boolean
+  }
+  discounts: { pointsWithCodes: boolean }
+  orders: { unpaidExpiryDaysOnline: number; unpaidExpiryDaysManual: number }
+  inventory: { lowStockThreshold: number }
   points: {
-    perDollar: Record<Tier, number>
+    valueCentsPer100: number
+    /** Only MEMBER (the base rate) unless the membership add-on is licensed. */
+    perDollar: Partial<Record<Tier, number>> & { MEMBER: number }
     bonusThresholdCents: number
     bonusPoints: number
     maxRedeemPct: number
     expiryMonths: number
-    founderYearlyBonus: number
+    founderYearlyBonus?: number
   }
-  membership: Record<Exclude<Tier, 'MEMBER'>, { monthlyCents: number; yearlyCents: number }>
+  membership?: Record<Exclude<Tier, 'MEMBER'>, { monthlyCents: number; yearlyCents: number }>
   paymentMethods: PaymentMethodSetting[]
 }
 
 export interface SettingsResponse {
   settings: StoreSettings
+  /** Add-ons this installation may show at all. Set on the server only. */
+  licensed: { membership: boolean }
   gateway: { provider: string; configured: boolean; sandbox: boolean; callbackUrl: string }
 }

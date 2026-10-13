@@ -6,10 +6,11 @@ import { Hero } from '@/components/home/Hero'
 import { AboutBlock, CoaRail, CtaBand, FaqSection, Programs, TierStairs } from '@/components/home/Sections'
 import { ResearchDisclaimer } from '@/components/layout/SiteFooter'
 import { ProductCard, ProductCardSkeleton } from '@/components/product/ProductCard'
-import { useCoas, useProducts, useSettings } from '@/lib/queries'
+import { useCoas, usePrograms, useProducts, useSettings } from '@/lib/queries'
 
 export default function Home() {
   const { data: settings } = useSettings()
+  const programs = usePrograms()
   const all = useProducts()
   const coas = useCoas()
   const products = all.data ?? []
@@ -41,7 +42,7 @@ export default function Home() {
       </section>
 
       <AboutBlock compounds={products.length || 13} sizes={products.reduce((a, p) => a + p.variants.length, 0) || 26} />
-      <TierStairs settings={settings} />
+      {programs.tiers && <TierStairs settings={settings} />}
       <Programs settings={settings} />
       {coas.data && coas.data.length > 0 && <CoaRail coas={dedupeByProduct(coas.data).slice(0, 12)} />}
       <FaqSection settings={settings} />

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import type { Prisma, User } from '@prisma/client'
 import { z } from 'zod'
 import { db } from '../../lib/db.js'
+import { env } from '../../lib/env.js'
 import { badRequest, notFound, parse, toPage } from '../../lib/http.js'
 import { affiliateBalances, bankLine, bankSchema, requestPayout } from '../affiliate.js'
 import { LIVE } from './reports.js'
@@ -89,6 +90,11 @@ export async function adminPeopleRoutes(app: FastifyInstance) {
       req.body,
     )
     if (body.role && id === admin.id && body.role !== 'ADMIN') throw badRequest('You cannot remove your own admin access')
+    // Membership tiers are a licensed add-on; without it, tier fields are ignored.
+    if (!env.enableMembership) {
+      delete body.tier
+      delete body.tierExpiresAt
+    }
     await db.user.update({ where: { id }, data: { ...body, ...(body.tier === 'MEMBER' ? { tierExpiresAt: null } : {}) } })
     return { ok: true }
   })
