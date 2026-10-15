@@ -6,3 +6,4 @@ dist/
 api/uploads/
 *.log
 .DS_Store
+backups/
