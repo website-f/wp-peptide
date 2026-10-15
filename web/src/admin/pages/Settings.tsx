@@ -79,6 +79,7 @@ interface Form {
   membership: Record<PaidTier, { monthly: string; yearly: string }> | null
   paymentMethods: PaymentMethodSetting[]
   onlinePayment: StoreSettings['onlinePayment']
+  notifications: StoreSettings['notifications']
 }
 
 type Payload = Partial<Omit<StoreSettings, 'currency'>>
@@ -150,6 +151,7 @@ function toForm(s: StoreSettings): Form {
       : null,
     paymentMethods: s.paymentMethods.map((m) => ({ ...m })),
     onlinePayment: { channel: s.onlinePayment?.channel ?? 'both', feesPaidBy: s.onlinePayment?.feesPaidBy ?? 'store' },
+    notifications: { ...{ staffEmail: '', orderPaid: true, partnerApplication: true, payoutRequest: true, contactMessage: true, paymentIssue: true }, ...s.notifications },
   }
 }
 
@@ -203,6 +205,8 @@ function validate(f: Form): { payload: Payload | null; errors: Errors } {
 
   const email = f.supportEmail.trim()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.supportEmail = 'Enter a valid email address'
+  const staffEmail = f.notifications.staffEmail.trim()
+  if (staffEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(staffEmail)) errors['notifications.staffEmail'] = 'Enter a valid email address, or leave it empty'
 
   const wholesale = ladder('wholesale', f.wholesale, true)
   const maxUnits = int('bulk.maxUnitsPerOrder', f.bulk.maxUnitsPerOrder, 0, 100000)
@@ -282,6 +286,7 @@ function validate(f: Form): { payload: Payload | null; errors: Errors } {
       instructions: text(`paymentMethods.${i}.instructions`, m.instructions, 1500),
     })),
     onlinePayment: { channel: f.onlinePayment.channel, feesPaidBy: f.onlinePayment.feesPaidBy },
+    notifications: { ...f.notifications, staffEmail },
   }
   // Licensed add-on groups are only ever sent when the server sent them.
   if (f.features) payload.features = { membership: f.features.membership }
@@ -294,10 +299,11 @@ function validate(f: Form): { payload: Payload | null; errors: Errors } {
   return { payload: Object.keys(errors).length ? null : payload, errors }
 }
 
-type SectionId = 'store' | 'banner' | 'shipping' | 'quantity' | 'bulk' | 'box' | 'partners' | 'points' | 'orders' | 'payments' | 'gateway' | 'membership'
+type SectionId = 'store' | 'notifications' | 'banner' | 'shipping' | 'quantity' | 'bulk' | 'box' | 'partners' | 'points' | 'orders' | 'payments' | 'gateway' | 'membership'
 
 const SECTIONS: { id: SectionId; label: string; licensed?: true }[] = [
   { id: 'store', label: 'Store' },
+  { id: 'notifications', label: 'Notifications' },
   { id: 'banner', label: 'Top banner' },
   { id: 'shipping', label: 'Shipping and tax' },
   { id: 'quantity', label: 'Quantity discounts' },
@@ -335,6 +341,7 @@ function sectionOf(key: string): SectionId {
     inventory: 'orders',
     paymentMethods: 'payments',
     onlinePayment: 'payments',
+    notifications: 'notifications',
     features: 'membership',
     membership: 'membership',
   }
@@ -628,6 +635,46 @@ export default function Settings() {
           </Section>
 
           {/* ---------- Top banner ---------- */}
+          {/* ---------- Notifications ---------- */}
+          <Section id="notifications" title="Notifications" description="Emails sent to your team. Customers and partners always get their own emails (order updates, password resets, partner decisions).">
+            <div className="grid gap-4">
+              <Field
+                label="Send team alerts to"
+                htmlFor="staffEmail"
+                error={err('notifications.staffEmail')}
+                hint={`Leave empty to use the support email (${form.supportEmail || 'not set'}).`}
+              >
+                <TextInput
+                  id="staffEmail"
+                  type="email"
+                  placeholder={form.supportEmail}
+                  value={form.notifications.staffEmail}
+                  onChange={(e) => update((d) => void (d.notifications.staffEmail = e.target.value))}
+                />
+              </Field>
+              <div className="grid gap-3">
+                {(
+                  [
+                    ['orderPaid', 'New paid order', 'When an order is paid and ready to pack.'],
+                    ['partnerApplication', 'Partner application', 'When someone applies to the partner program.'],
+                    ['payoutRequest', 'Payout request', 'When a partner asks to be paid.'],
+                    ['contactMessage', 'Contact form message', 'Reply to the email to answer the customer directly.'],
+                    ['paymentIssue', 'Payment issue', 'Extra or short payments that need a refund or a check.'],
+                  ] as const
+                ).map(([k, label, description]) => (
+                  <ToggleRow
+                    key={k}
+                    id={`notify-${k}`}
+                    label={label}
+                    description={description}
+                    checked={form.notifications[k]}
+                    onChange={(v) => update((d) => void (d.notifications[k] = v))}
+                  />
+                ))}
+              </div>
+            </div>
+          </Section>
+
           <Section
             id="banner"
             title="Top banner"

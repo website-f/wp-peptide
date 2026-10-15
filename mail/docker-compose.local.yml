@@ -1,0 +1,14 @@
+# LOCAL TESTING ON WINDOWS ONLY: Postfix's queue and Dovecot's maildirs need a Linux
+# filesystem, so keep them in Docker volumes instead of Windows folders.
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+services:
+  mailserver:
+    volumes:
+      - local-mail:/var/mail
+      - local-state:/var/mail-state
+  panel:
+    volumes:
+      - local-mail:/mail-data
+volumes:
+  local-mail:
+  local-state:

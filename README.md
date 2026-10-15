@@ -136,11 +136,20 @@ How payments are confirmed:
 
 ## Email
 
-Set `SMTP_*` in `.env` to send order received, payment received, shipped (with tracking), delivered, cancelled and refunded emails, plus partner approval, rejection and payout notices. Without SMTP the API logs each message and carries on.
+The domain's mail runs on the same VPS: see [mail/README.md](mail/README.md). `https://<domain>/mail` is the control panel (accounts, forwarders, delivery log, DNS check) and `https://<domain>/webmail` is Roundcube.
+
+The store sends through it as `noreply@` (`SMTP_*` in `.env`, written by `mail/deploy-mail.sh`). Every message has HTML and plain text, is DKIM-signed, and replies go to the support address in Admin > Settings.
+
+- **Customers**: order received, payment received, shipped (with tracking), delivered, cancelled, refunded; password reset link (single use, 1 hour) and "password changed" notice. Changing or resetting a password signs out every other session.
+- **Partners**: application received, approved, rejected, paused, payout sent, bank details changed.
+- **Team** (Admin > Settings > Notifications, each on/off, sent to a team address or the support email): new paid order, partner application, payout request, contact form message (reply goes straight to the customer), payment issue.
+
+Without `SMTP_HOST` the API logs each message and carries on.
 
 ## Before going live
 
 - Review the policy pages (`web/src/components/account/policyContent.tsx`). Delivery times, report windows and refund timings there are sensible defaults, not legal advice.
 - Replace the placeholder bank/DuitNow details in Admin > Settings before enabling manual payment methods.
 - Set real product costs per size (Admin > Products) so finance margins are accurate. Seeded costs are estimates.
-- Change the support email in Admin > Settings.
+- Change the support email in Admin > Settings (and the team alert address under Notifications).
+- Ask the domain's DNS host to publish the mail records shown in `/mail` > Email Deliverability, and set reverse DNS for the server IP at the VPS host.

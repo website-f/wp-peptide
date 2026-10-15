@@ -98,10 +98,27 @@ model User {
   lastLoginAt        DateTime?
   // Set on the bootstrap admin so the one-time password must be replaced at first sign-in.
   mustChangePassword Boolean        @default(false)
+  /// Bumped on password change/reset: every session issued before it stops working.
+  sessionVersion     Int            @default(0)
   orders             Order[]
+  passwordResets     PasswordReset[]
   affiliate          Affiliate?
   pointsTxns         PointsTxn[]
   subscriptions      Subscription[]
+}
+
+/// "Forgot password" links. Only a SHA-256 of the token is stored; each link works once, for 1 hour.
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  ip        String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model Category {

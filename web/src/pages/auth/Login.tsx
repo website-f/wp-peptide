@@ -75,6 +75,11 @@ export default function Login() {
         <Field id="login-password" label="Password" error={errors.password}>
           <PasswordInput autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </Field>
+        <p className="-mt-3 text-right text-xs">
+          <Link to="/forgot-password" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+            Forgot password?
+          </Link>
+        </p>
         <FormError message={login.isError ? cleanApiMessage(errorMessage(login.error)) : null} />
         <Button type="submit" size="lg" className="w-full" disabled={login.isPending}>
           {login.isPending && <CircleNotchIcon className="animate-spin" />}
@@ -85,13 +90,6 @@ export default function Login() {
           <Link to={`/register${nextQs}`} className="font-medium text-gold-ink underline-offset-4 hover:underline">
             Create an account
           </Link>
-        </p>
-        <p className="text-center text-xs text-muted-foreground">
-          Forgot your password? Email us from the address on your account via the{' '}
-          <Link to="/contact" className="underline underline-offset-2 hover:text-foreground">
-            contact page
-          </Link>{' '}
-          and we will reset it.
         </p>
       </form>
     </AuthShell>

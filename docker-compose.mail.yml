@@ -1,0 +1,12 @@
+# Joins the store to the mail stack (mail/docker-compose.yml) so nginx can serve
+# /mail and /webmail, and the API can send through the mail server by its public name.
+# deploy/deploy-vps.sh adds this file automatically once the "kyvo-mail" network exists.
+services:
+  web:
+    networks: [default, mail]
+  api:
+    networks: [default, mail]
+networks:
+  mail:
+    external: true
+    name: kyvo-mail

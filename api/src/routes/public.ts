@@ -6,6 +6,7 @@ import { db } from '../lib/db.js'
 import { notFound, parse } from '../lib/http.js'
 import { coaDto, productCard, productDetail, productInclude } from '../lib/serialize.js'
 import { gatewayReady } from '../lib/gateway.js'
+import { mailStaffContact } from '../lib/mailer.js'
 import { getSettings, publicSettings } from '../lib/settings.js'
 
 export async function publicRoutes(app: FastifyInstance) {
@@ -102,6 +103,7 @@ export async function publicRoutes(app: FastifyInstance) {
       req.body,
     )
     await db.contactMessage.create({ data: { ...body, email: body.email.toLowerCase() } })
+    mailStaffContact({ ...body, email: body.email.toLowerCase() })
     return { ok: true }
   })
 

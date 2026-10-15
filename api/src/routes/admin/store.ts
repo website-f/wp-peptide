@@ -154,6 +154,14 @@ const settingsSchema = z
       VIP: z.object({ monthlyCents: z.number().int().min(0), yearlyCents: z.number().int().min(0) }),
       FOUNDER: z.object({ monthlyCents: z.number().int().min(0), yearlyCents: z.number().int().min(0) }),
     }),
+    notifications: z.object({
+      staffEmail: z.union([z.literal(''), z.email('Enter a valid email, or leave it empty to use the support email')]),
+      orderPaid: z.boolean(),
+      partnerApplication: z.boolean(),
+      payoutRequest: z.boolean(),
+      contactMessage: z.boolean(),
+      paymentIssue: z.boolean(),
+    }),
     onlinePayment: z.object({ channel: z.enum(['fpx', 'card', 'both']), feesPaidBy: z.enum(['store', 'customer']) }),
     paymentMethods: z
       .array(

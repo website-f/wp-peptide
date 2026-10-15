@@ -4,6 +4,7 @@ import { db } from './db.js'
 import { env } from './env.js'
 import { activeCreds, closeOpenBills, TOYYIB_HOSTS, type PayEnv } from './gateway.js'
 import { HttpError } from './http.js'
+import { mailStaffPaymentIssue } from './mailer.js'
 import { setOrderStatus } from './orders.js'
 import { getSettings } from './settings.js'
 
@@ -159,7 +160,11 @@ export async function reconcile(order: Order, actor: string): Promise<'paid' | '
       if (success.billExternalReferenceNo && success.billExternalReferenceNo !== order.number) continue
       const paidCents = Math.round(Number(success.billpaymentAmount ?? '0') * 100)
       if (paidCents < order.totalCents) {
-        await db.order.update({ where: { id: order.id }, data: { paymentStatusNote: `Underpaid: gateway reports ${rm(paidCents)} on bill ${bill.billCode}` } })
+        const note = `Underpaid: gateway reports ${rm(paidCents)} on bill ${bill.billCode}`
+        if (order.paymentStatusNote !== note) {
+          await db.order.update({ where: { id: order.id }, data: { paymentStatusNote: note } })
+          mailStaffPaymentIssue(order.id, `${note}, but the order total is ${rm(order.totalCents)}.`)
+        }
         return 'unchanged'
       }
       // The paying bill is done; setOrderStatus then closes the order's other open bills.
@@ -199,6 +204,7 @@ export async function flagLatePayment(order: Order, bill: PaymentBill) {
     db.orderEvent.create({ data: { orderId: order.id, type: 'payment_extra', message, actor: 'toyyibpay' } }),
     db.order.update({ where: { id: order.id }, data: { paymentStatusNote: `Extra payment ${amount} needs a refund (ref ${ref})` } }),
   ])
+  mailStaffPaymentIssue(order.id, message)
   return true
 }
 

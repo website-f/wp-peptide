@@ -110,6 +110,16 @@ export interface StoreSettings {
   }
   membership: Record<PaidTier, { monthlyCents: number; yearlyCents: number }>
   paymentMethods: PaymentMethod[]
+  /** Emails to the team. Customer and partner emails always go out. */
+  notifications: {
+    /** Where staff alerts go. Empty = the support email. */
+    staffEmail: string
+    orderPaid: boolean
+    partnerApplication: boolean
+    payoutRequest: boolean
+    contactMessage: boolean
+    paymentIssue: boolean
+  }
   /** ToyyibPay bill options. Keys and sandbox/production mode live in lib/gateway.ts (encrypted). */
   onlinePayment: {
     /** Which ToyyibPay channels the payment page offers. Card must be enabled on the ToyyibPay account. */
@@ -217,6 +227,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
     },
   ],
   onlinePayment: { channel: 'both', feesPaidBy: 'store' },
+  notifications: { staffEmail: '', orderPaid: true, partnerApplication: true, payoutRequest: true, contactMessage: true, paymentIssue: true },
 }
 
 let cache: { at: number; value: StoreSettings } | null = null
@@ -273,7 +284,7 @@ export const licensed = () => ({ membership: env.enableMembership })
 /** gatewayReady: online payment is hidden from shoppers while ToyyibPay is not set up. */
 export function publicSettings(s: StoreSettings, gatewayReady: boolean) {
   // Unlicensed programs are not described to the public at all.
-  const { membership, features, announcement: _legacy, banner, onlinePayment: _gateway, ...rest } = s
+  const { membership, features, announcement: _legacy, banner, onlinePayment: _gateway, notifications: _staff, ...rest } = s
   // Shoppers only receive messages that are switched on and inside their schedule.
   const now = Date.now()
   const live = banner.enabled

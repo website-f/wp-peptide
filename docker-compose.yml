@@ -45,6 +45,8 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      # Local self-signed mail server only. Leave unset in production (TLS is verified).
+      SMTP_TLS_REJECT_UNAUTHORIZED: ${SMTP_TLS_REJECT_UNAUTHORIZED:-true}
       # Licensed add-on: membership tiers stay hidden everywhere unless this is true.
       ENABLE_MEMBERSHIP: ${ENABLE_MEMBERSHIP:-false}
       SEED_DEMO: ${SEED_DEMO:-0}

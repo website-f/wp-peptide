@@ -10,6 +10,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 C="docker compose -f docker-compose.yml -f docker-compose.vps.yml"
+# With the mail stack running (mail/deploy-mail.sh), the store joins its network for /mail, /webmail and SMTP.
+if docker network inspect kyvo-mail >/dev/null 2>&1; then C="$C -f docker-compose.mail.yml"; fi
 PORT="$(grep -E '^KYVO_PORT=' .env | cut -d= -f2 || true)"
 PORT="${PORT:-8600}"
 

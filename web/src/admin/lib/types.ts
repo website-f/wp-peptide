@@ -529,6 +529,14 @@ export interface StoreSettings {
   membership?: Record<Exclude<Tier, 'MEMBER'>, { monthlyCents: number; yearlyCents: number }>
   paymentMethods: PaymentMethodSetting[]
   onlinePayment: { channel: 'fpx' | 'card' | 'both'; feesPaidBy: 'store' | 'customer' }
+  notifications: {
+    staffEmail: string
+    orderPaid: boolean
+    partnerApplication: boolean
+    payoutRequest: boolean
+    contactMessage: boolean
+    paymentIssue: boolean
+  }
 }
 
 export type PayEnv = 'sandbox' | 'production'

@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { currentUser, hashPassword, requireUser, setSession } from '../lib/auth.js'
 import { db } from '../lib/db.js'
 import { HttpError, badRequest, notFound, parse } from '../lib/http.js'
-import { mailPartner } from '../lib/mailer.js'
+import { mailPartner, mailPartnerApplied, mailStaffPayoutRequest } from '../lib/mailer.js'
 import { fmtMoney, getSettings } from '../lib/settings.js'
 import { passwordSchema } from './auth.js'
 
@@ -159,6 +159,7 @@ export async function affiliateRoutes(app: FastifyInstance) {
         promotionPlan: body.promotionPlan || null,
       },
     })
+    mailPartnerApplied(aff.id)
     return { status: aff.status, code: aff.code }
   })
 
@@ -322,6 +323,7 @@ export async function affiliateRoutes(app: FastifyInstance) {
     const a = await db.affiliate.findUnique({ where: { userId: user.id } })
     if (!a || a.status !== 'APPROVED') throw badRequest('Your partner account is not active')
     const p = await requestPayout(a.id, 'partner')
+    mailStaffPayoutRequest(a.id, p.amountCents)
     return { id: p.id, amountCents: p.amountCents }
   })
 }

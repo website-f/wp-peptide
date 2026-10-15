@@ -25,6 +25,8 @@ const Partners = p(() => import('@/pages/Partners'))
 const PartnerDashboard = p(() => import('@/pages/PartnerDashboard'))
 const Login = p(() => import('@/pages/auth/Login'))
 const Register = p(() => import('@/pages/auth/Register'))
+const ForgotPassword = p(() => import('@/pages/auth/ForgotPassword'))
+const ResetPassword = p(() => import('@/pages/auth/ResetPassword'))
 const Account = p(() => import('@/pages/Account'))
 const Policy = p(() => import('@/pages/Policy'))
 
@@ -67,6 +69,8 @@ const router = createBrowserRouter([
       { path: '/partners/dashboard', element: <PartnerDashboard /> },
       { path: '/login', element: <Login /> },
       { path: '/register', element: <Register /> },
+      { path: '/forgot-password', element: <ForgotPassword /> },
+      { path: '/reset-password', element: <ResetPassword /> },
       { path: '/account', element: <Account /> },
       { path: '/account/:tab', element: <Account /> },
       { path: '/policies/:slug', element: <Policy /> },

@@ -12,8 +12,9 @@ const MAX_AGE = 60 * 60 * 24 * 30
 export const hashPassword = (pw: string) => bcrypt.hash(pw, 11)
 export const verifyPassword = (pw: string, hash: string) => bcrypt.compare(pw, hash)
 
-export function setSession(reply: FastifyReply, user: Pick<User, 'id' | 'role'>) {
-  const token = jwt.sign({ sub: user.id, role: user.role }, env.jwtSecret, { expiresIn: MAX_AGE })
+export function setSession(reply: FastifyReply, user: Pick<User, 'id' | 'role' | 'sessionVersion'>) {
+  // "v" ties the session to the password: changing or resetting it ends every older session.
+  const token = jwt.sign({ sub: user.id, role: user.role, v: user.sessionVersion }, env.jwtSecret, { expiresIn: MAX_AGE })
   reply.setCookie(SESSION_COOKIE, token, {
     path: '/',
     httpOnly: true,
@@ -31,8 +32,9 @@ export async function currentUser(req: FastifyRequest): Promise<User | null> {
   const token = req.cookies[SESSION_COOKIE]
   if (!token) return null
   try {
-    const payload = jwt.verify(token, env.jwtSecret) as { sub: string }
-    return await db.user.findUnique({ where: { id: payload.sub } })
+    const payload = jwt.verify(token, env.jwtSecret) as { sub: string; v?: number }
+    const user = await db.user.findUnique({ where: { id: payload.sub } })
+    return user && (payload.v ?? 0) === user.sessionVersion ? user : null
   } catch {
     return null
   }

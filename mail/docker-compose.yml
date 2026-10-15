@@ -1,0 +1,90 @@
+# KYVO mail: SMTP/IMAP server, cPanel-style control panel (/mail) and Roundcube webmail (/webmail).
+#
+#   cd mail && ./deploy-mail.sh          (on the VPS; see README.md)
+#
+# The store's nginx (web container) joins the "kyvo-mail" network and serves
+# https://<domain>/mail and /webmail from here. Runtime data lives in ./data (never in git).
+name: kyvo-mail
+
+services:
+  mailserver:
+    image: ghcr.io/docker-mailserver/docker-mailserver:16.0.1
+    hostname: ${MAIL_HOSTNAME:?set MAIL_HOSTNAME in mail/.env}
+    env_file: dms.env
+    environment:
+      POSTMASTER_ADDRESS: postmaster@${MAIL_DOMAIN}
+      # Let's Encrypt certificate for MAIL_HOSTNAME, issued and renewed by the edge proxy (orxies).
+      # Renewals are picked up automatically by DMS change detection.
+      SSL_TYPE: manual
+      SSL_CERT_PATH: /certs/${MAIL_HOSTNAME}.crt
+      SSL_KEY_PATH: /certs/${MAIL_HOSTNAME}.key
+    ports:
+      - "25:25"     # inbound mail from the internet
+      - "465:465"   # submission, implicit TLS (mail apps)
+      - "587:587"   # submission, STARTTLS (mail apps, the store)
+      - "993:993"   # IMAP over TLS (mail apps)
+    volumes:
+      - ./data/mail:/var/mail
+      - ./data/state:/var/mail-state
+      - ./data/logs:/var/log/mail
+      - ./data/config:/tmp/docker-mailserver
+      - ${CERT_DIR:?set CERT_DIR in mail/.env}:/certs:ro
+      - /etc/localtime:/etc/localtime:ro
+    cap_add:
+      - NET_ADMIN # Fail2Ban bans brute-force logins
+    stop_grace_period: 1m
+    restart: always
+    networks:
+      mail:
+        # The store and webmail connect by the public name, so TLS certificates verify.
+        aliases:
+          - ${MAIL_HOSTNAME}
+          - kyvo-mailserver
+
+  panel:
+    build: ./panel
+    environment:
+      MAIL_DOMAIN: ${MAIL_DOMAIN}
+      MAIL_HOSTNAME: ${MAIL_HOSTNAME}
+      SERVER_IP: ${SERVER_IP:?set SERVER_IP in mail/.env}
+      DKIM_SELECTOR: ${DKIM_SELECTOR:-mail}
+      BASE_PATH: /mail
+      WEBMAIL_URL: /webmail/
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+    volumes:
+      - ./data/config:/dms-config
+      - ./data/mail:/mail-data
+      - ./data/logs:/mail-logs:ro
+      - ./data/panel:/data
+    restart: always
+    networks:
+      mail:
+        aliases: [kyvo-mail-panel]
+
+  roundcube:
+    image: roundcube/roundcubemail:1.7.4-apache
+    environment:
+      ROUNDCUBEMAIL_DEFAULT_HOST: ssl://${MAIL_HOSTNAME}
+      ROUNDCUBEMAIL_DEFAULT_PORT: 993
+      ROUNDCUBEMAIL_SMTP_SERVER: ssl://${MAIL_HOSTNAME}
+      ROUNDCUBEMAIL_SMTP_PORT: 465
+      ROUNDCUBEMAIL_DB_TYPE: sqlite
+      ROUNDCUBEMAIL_DES_KEY: ${ROUNDCUBE_DES_KEY:?set ROUNDCUBE_DES_KEY in mail/.env}
+      ROUNDCUBEMAIL_SKIN: elastic
+      ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE: 25M
+      ROUNDCUBEMAIL_PLUGINS: archive,zipdownload,markasjunk,newmail_notifier,emoticons
+      MAIL_DOMAIN: ${MAIL_DOMAIN}
+    volumes:
+      - ./data/roundcube/db:/var/roundcube/db
+      - ./roundcube/kyvo.inc.php:/var/roundcube/config/kyvo.inc.php:ro
+      # tls-verify (production) or tls-insecure (local self-signed certificate only)
+      - ./roundcube/tls-${MAIL_TLS_MODE:-verify}.inc.php:/var/roundcube/config/zz-tls.inc.php:ro
+    depends_on: [mailserver]
+    restart: always
+    networks:
+      mail:
+        aliases: [kyvo-roundcube]
+
+networks:
+  mail:
+    name: kyvo-mail

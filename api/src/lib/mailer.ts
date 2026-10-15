@@ -16,7 +16,12 @@ function getTransport() {
         host: env.smtp.host,
         port: env.smtp.port,
         secure: env.smtp.port === 465,
+        // Port 587 must upgrade to TLS before the password is sent.
+        requireTLS: env.smtp.port !== 465,
+        tls: { rejectUnauthorized: env.smtp.tlsRejectUnauthorized, minVersion: 'TLSv1.2' },
         auth: env.smtp.user ? { user: env.smtp.user, pass: env.smtp.pass } : undefined,
+        pool: true,
+        maxConnections: 3,
       })
     : null
   return transport
@@ -37,14 +42,46 @@ ${cta ? `<p style="margin:24px 0 0"><a href="${cta.url}" style="display:inline-b
 </table></td></tr></table></body></html>`
 }
 
-async function send(to: string, subject: string, html: string) {
+/** Plain-text twin of an HTML email. Mail with both parts scores better with spam filters. */
+function toText(html: string) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<a [^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href: string, label: string) => `${label.replace(/<[^>]+>/g, '').trim()}: ${href}`)
+    .replace(/<(br|\/p|\/tr|\/h1|\/div)[^>]*>/gi, '\n')
+    .replace(/<\/td>/gi, '  ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+async function send(to: string, subject: string, html: string, opts: { replyTo?: string } = {}) {
   const t = getTransport()
   if (!t) {
     console.log(`[mail skipped, SMTP not configured] to=${to} subject="${subject}"`)
     return
   }
   const s = await getSettings()
-  await t.sendMail({ from: env.smtp.from || `${s.storeName} <${s.supportEmail}>`, to, subject, html })
+  await t.sendMail({
+    from: env.smtp.from || `${s.storeName} <${s.supportEmail}>`,
+    to,
+    replyTo: opts.replyTo ?? s.supportEmail,
+    subject,
+    html,
+    text: toText(html),
+    headers: {
+      // Transactional mail: ask mail apps not to send out-of-office replies back.
+      'Auto-Submitted': 'auto-generated',
+      'X-Auto-Response-Suppress': 'OOF, AutoReply',
+    },
+  })
 }
 
 /** Never let a mail failure break the request that triggered it. */
@@ -158,6 +195,140 @@ export function mailPartner(affiliateId: string, event: 'approved' | 'rejected' 
         'Your KYVO payout has been sent',
         layout('Payout sent', `<p>Hi ${first}, we transferred <b>${fmtMoney(s, extra?.amountCents ?? 0)}</b> to your ${esc(a.bankName ?? 'bank')} account ending ${esc((a.bankAccountNumber ?? '').slice(-4))}.${extra?.reference ? ` Reference: <b style="font-family:monospace">${esc(extra.reference)}</b>.` : ''}</p>`, { label: 'View payouts', url: dash }),
       )
+    })(),
+  )
+}
+
+// ---------- account security ----------
+
+export function mailAccount(userId: string, event: 'password-reset' | 'password-changed', extra?: { url?: string; minutes?: number }) {
+  fire(
+    (async () => {
+      const u = await db.user.findUnique({ where: { id: userId } })
+      if (!u) return
+      const s = await getSettings()
+      const first = esc(u.name.split(' ')[0])
+      if (event === 'password-reset') {
+        return send(
+          u.email,
+          `Reset your ${s.storeName} password`,
+          layout(
+            'Reset your password',
+            `<p>Hi ${first}, someone asked to reset the password for your ${esc(s.storeName)} account. The link works once, for the next ${extra?.minutes ?? 60} minutes.</p><p>If this was not you, ignore this email. Your password stays the same.</p>`,
+            { label: 'Choose a new password', url: extra!.url! },
+          ),
+        )
+      }
+      return send(
+        u.email,
+        `Your ${s.storeName} password was changed`,
+        layout(
+          'Password changed',
+          `<p>Hi ${first}, the password for your account was just changed and every other signed-in device was signed out.</p><p>If you did not do this, reset your password straight away and contact ${esc(s.supportEmail)}.</p>`,
+          { label: 'Reset password', url: `${env.publicUrl}/forgot-password` },
+        ),
+      )
+    })(),
+  )
+}
+
+// ---------- partner applicants ----------
+
+export function mailPartnerApplied(affiliateId: string) {
+  fire(
+    (async () => {
+      const a = await db.affiliate.findUnique({ where: { id: affiliateId }, include: { user: true } })
+      if (!a) return
+      const s = await getSettings()
+      await send(
+        a.user.email,
+        `We received your ${s.storeName} partner application`,
+        layout(
+          'Application received',
+          `<p>Hi ${esc(a.user.name.split(' ')[0])}, thanks for applying to the partner program. We review every application by hand and will email you as soon as it is decided.</p>`,
+          { label: 'View your application', url: `${env.publicUrl}/partners/dashboard` },
+        ),
+      )
+      await staffAlert(
+        'partnerApplication',
+        `New partner application: ${a.user.name}`,
+        'New partner application',
+        `<p><b>${esc(a.user.name)}</b> (${esc(a.user.email)}) applied to the partner program.</p><p>Platform: ${esc(a.platform)}<br/>Handle: ${esc(a.handle)}</p>`,
+        { label: 'Review application', url: `${env.publicUrl}/admin/partners/${a.id}` },
+      )
+    })(),
+  )
+}
+
+// ---------- staff alerts (Admin > Settings > Notifications) ----------
+
+type StaffEvent = 'orderPaid' | 'partnerApplication' | 'payoutRequest' | 'contactMessage' | 'paymentIssue'
+
+async function staffAlert(event: StaffEvent, subject: string, title: string, body: string, cta?: { label: string; url: string }, replyTo?: string) {
+  const s = await getSettings()
+  const n = s.notifications
+  if (!n[event]) return
+  const to = (n.staffEmail || s.supportEmail).trim()
+  if (!to) return
+  await send(to, `[${s.storeName}] ${subject}`, layout(title, body, cta), { replyTo })
+}
+
+export function mailStaffOrderPaid(orderId: string) {
+  fire(
+    (async () => {
+      const o = await db.order.findUnique({ where: { id: orderId }, include: { items: true } })
+      if (!o) return
+      const s = await getSettings()
+      await staffAlert(
+        'orderPaid',
+        `New paid order ${o.number} (${fmtMoney(s, o.totalCents)})`,
+        `Order ${o.number} is paid`,
+        `<p><b>${esc(o.name)}</b> (${esc(o.email)}) paid <b>${fmtMoney(s, o.totalCents)}</b>. It is ready to pack.</p>${itemsTable(o.items)}`,
+        { label: 'Open the order', url: `${env.publicUrl}/admin/orders/${o.id}` },
+      )
+    })(),
+  )
+}
+
+export function mailStaffPayoutRequest(affiliateId: string, amountCents: number) {
+  fire(
+    (async () => {
+      const a = await db.affiliate.findUnique({ where: { id: affiliateId }, include: { user: true } })
+      if (!a) return
+      const s = await getSettings()
+      await staffAlert(
+        'payoutRequest',
+        `Payout request from ${a.user.name} (${fmtMoney(s, amountCents)})`,
+        'Partner payout requested',
+        `<p><b>${esc(a.user.name)}</b> asked to be paid <b>${fmtMoney(s, amountCents)}</b> by bank transfer to ${esc(a.bankName ?? 'their bank')}, account ending ${esc((a.bankAccountNumber ?? '').slice(-4))}.</p>`,
+        { label: 'Review payouts', url: `${env.publicUrl}/admin/partners?tab=payouts` },
+      )
+    })(),
+  )
+}
+
+export function mailStaffContact(msg: { name: string; email: string; topic: string; orderRef?: string | null; message: string }) {
+  fire(
+    staffAlert(
+      'contactMessage',
+      `${msg.topic}: message from ${msg.name}`,
+      'New contact message',
+      `<p><b>${esc(msg.name)}</b> (${esc(msg.email)})${msg.orderRef ? `, order ${esc(msg.orderRef)}` : ''} wrote:</p><p style="white-space:pre-wrap;border-left:3px solid #d9ad5b;padding-left:12px">${esc(msg.message)}</p><p>Reply to this email to answer them directly.</p>`,
+      { label: 'Open the inbox', url: `${env.publicUrl}/admin/inbox` },
+      msg.email,
+    ),
+  )
+}
+
+export function mailStaffPaymentIssue(orderId: string, note: string) {
+  fire(
+    (async () => {
+      const o = await db.order.findUnique({ where: { id: orderId } })
+      if (!o) return
+      await staffAlert('paymentIssue', `Payment issue on order ${o.number}`, 'A payment needs your attention', `<p>Order <b>${o.number}</b> (${esc(o.email)}): ${esc(note)}</p>`, {
+        label: 'Open the order',
+        url: `${env.publicUrl}/admin/orders/${o.id}`,
+      })
     })(),
   )
 }
