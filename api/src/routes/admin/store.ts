@@ -6,6 +6,7 @@ import { env } from '../../lib/env.js'
 import { badRequest, csvEscape, parse } from '../../lib/http.js'
 import { getSettings, licensed, saveSettings, type StoreSettings } from '../../lib/settings.js'
 import { gatewayStatus } from '../../lib/gateway.js'
+import { TEST_GROUPS, sendTestEmails, testEmails } from '../../lib/mailer.js'
 
 const MODES = ['standard', 'wholesale', 'box'] as const
 
@@ -232,6 +233,14 @@ export async function adminStoreRoutes(app: FastifyInstance) {
     reply.header('content-type', 'text/csv; charset=utf-8')
     reply.header('content-disposition', 'attachment; filename="kyvo-subscribers.csv"')
     return ['email,subscribed_at', ...rows.map((r) => `${csvEscape(r.email)},${r.createdAt.toISOString()}`)].join('\n')
+  })
+
+  // Sends every email template, filled with sample data, to one address (subjects start with [Test]).
+  app.post('/notifications/test', { config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (req) => {
+    const body = parse(z.object({ to: z.email('Enter a valid email').max(160), groups: z.array(z.enum(TEST_GROUPS)).min(1, 'Choose what to send') }), req.body)
+    const mails = await testEmails(body.groups)
+    sendTestEmails(body.to, mails)
+    return { queued: mails.length, subjects: mails.map((m) => m.subject), seconds: Math.ceil((mails.length - 1) * 4) }
   })
 
   app.get('/settings', async () => ({

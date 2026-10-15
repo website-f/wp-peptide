@@ -338,6 +338,7 @@ export async function setOrderStatus(
     if (extra.note) message += `. ${extra.note}`
     await tx.orderEvent.create({ data: { orderId, type: next.toLowerCase(), message, actor } })
     if (!wasPaid && LIVE.includes(next)) mail = 'paid'
+    if (next === 'PROCESSING' && wasPaid) mail = 'processing'
     if (next === 'SHIPPED') mail = 'shipped'
     if (next === 'DELIVERED') mail = 'delivered'
     if (next === 'CANCELLED') mail = 'cancelled'

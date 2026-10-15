@@ -20,6 +20,7 @@ import { currencySymbol, date, money, num } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog, ErrorState, Field, MoneyInput, Num, NumberInput, PageHeader, Panel, Pill, TextInput } from '../components/kit'
 import { BannerEditor, bannerToForm, validateBanner, type BannerForm } from '../components/BannerEditor'
+import { TestEmails } from '../components/TestEmails'
 import { ToyyibPayPanel } from '../components/ToyyibPayPanel'
 import { useAdminProducts, useAdminSettings } from '../lib/queries'
 import type { CountBy, PaymentMethodSetting, SettingsResponse, StoreSettings, Tier } from '../lib/types'
@@ -672,6 +673,7 @@ export default function Settings() {
                   />
                 ))}
               </div>
+              <TestEmails defaultTo={form.notifications.staffEmail || form.supportEmail} />
             </div>
           </Section>
 
