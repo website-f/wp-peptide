@@ -80,6 +80,8 @@ async function send(to: string, subject: string, html: string, opts: { replyTo?:
       // Transactional mail: ask mail apps not to send out-of-office replies back.
       'Auto-Submitted': 'auto-generated',
       'X-Auto-Response-Suppress': 'OOF, AutoReply',
+      // Mailbox providers trust senders that offer a way out; this one simply emails support.
+      'List-Unsubscribe': `<mailto:${s.supportEmail}?subject=Unsubscribe>`,
     },
   })
 }

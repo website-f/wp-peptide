@@ -108,6 +108,11 @@ if [ "$FIRST" = 1 ]; then
 fi
 
 # ---------- 5. DKIM ----------
+# Rspamd only starts once the first mailbox exists; the key generator reloads it.
+for _ in $(seq 1 40); do
+  $C exec -T mailserver supervisorctl status rspamd 2>/dev/null | grep -q RUNNING && break
+  sleep 3
+done
 if ! ls data/config/rspamd/dkim/*-"${DKIM_SELECTOR:-mail}"-"${MAIL_DOMAIN}".private.txt >/dev/null 2>&1; then
   $C exec -T mailserver setup config dkim keysize 2048 selector "${DKIM_SELECTOR:-mail}" domain "${MAIL_DOMAIN}" </dev/null
 fi
