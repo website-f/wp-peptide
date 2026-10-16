@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { api, errorMessage } from '@/lib/api'
 import { date, relative } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { ARCHIVE_LABEL, BulkBar, RestoreButton, SelectBox, restoreItems, useSelection, type ArchiveType } from '../components/bulk'
+import { ARCHIVE_LABEL, BulkBar, RestoreButton, SelectAllBanner, SelectBox, restoreItems, useSelection, type ArchiveType } from '../components/bulk'
 import { ErrorState, PageHeader, Panel, RowsSkeleton, SearchInput, Segmented } from '../components/kit'
 import { useDebounced } from '../lib/utils'
 
@@ -40,7 +40,7 @@ export default function Archive() {
     placeholderData: keepPreviousData,
   })
   const rows = query.data?.rows ?? []
-  const sel = useSelection(rows.map((r) => r.id))
+  const sel = useSelection(rows.map((r) => r.id), { paged: true, resetKey: `${type}|${q}` })
   const l = ARCHIVE_LABEL[type]
 
   async function restore(ids: string[]) {
@@ -73,6 +73,13 @@ export default function Archive() {
         <div className="flex flex-col gap-2 border-b p-3 sm:flex-row sm:items-center">
           <SearchInput value={search} onChange={setSearch} placeholder={`Search archived ${l.many}`} className="flex-1" />
         </div>
+        <SelectAllBanner
+          sel={sel}
+          visibleCount={rows.length}
+          total={q ? rows.length : (query.data?.counts[type] ?? 0)}
+          noun={l.many}
+          fetchIds={async () => (await api.get<{ ids: string[] }>(`/api/admin/archive/${type}/ids`, { q: q || undefined })).ids}
+        />
 
         {query.isError && !query.data ? (
           <div className="p-4">

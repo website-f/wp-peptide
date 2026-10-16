@@ -22,7 +22,7 @@ import {
   TierBadge,
 } from '../components/kit'
 import { useLicensed } from '../lib/queries'
-import { ArchiveButton, BulkBar, SelectBox, useArchive, useSelection } from '../components/bulk'
+import { ArchiveButton, BulkBar, SelectAllBanner, SelectBox, useArchive, useSelection } from '../components/bulk'
 import type { CustomerRow, Paged, Tier } from '../lib/types'
 import { TIER_LABEL, useDebounced } from '../lib/utils'
 
@@ -96,7 +96,7 @@ export default function Customers() {
 
   const rows = query.data?.rows ?? []
   const filtered = Boolean(q || tier)
-  const sel = useSelection(rows.map((c) => c.id))
+  const sel = useSelection(rows.map((c) => c.id), { paged: true, resetKey: JSON.stringify({ q, tier }) })
   const archive = useArchive('customers', sel.clear)
 
   return (
@@ -161,6 +161,13 @@ export default function Customers() {
         />
       ) : (
         <Panel flush className={query.isPlaceholderData ? 'opacity-70 transition-opacity' : undefined}>
+          <SelectAllBanner
+            sel={sel}
+            visibleCount={rows.length}
+            total={query.data?.total ?? 0}
+            noun="customers"
+            fetchIds={async () => (await api.get<{ ids: string[] }>('/api/admin/customers/ids', { q: q || undefined, tier: tier ?? undefined })).ids}
+          />
           {/* Phone: stacked cards */}
           <ul className="divide-y md:hidden">
             {rows.map((c) => (

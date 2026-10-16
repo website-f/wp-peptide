@@ -10,7 +10,7 @@ import { api } from '@/lib/api'
 import { date, moneyExact, plural, relative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ErrorState, Num, OrderStatusBadge, PageHeader, Pager, Panel, Pill, RowsSkeleton, SearchInput, Segmented } from '../components/kit'
-import { ArchiveButton, BulkBar, SelectBox, useArchive, useSelection } from '../components/bulk'
+import { ArchiveButton, BulkBar, SelectAllBanner, SelectBox, useArchive, useSelection } from '../components/bulk'
 import type { OrderKind, OrderList, OrderStatus } from '../lib/types'
 import { useLicensed } from '../lib/queries'
 import { kindLabel, orderKinds, paymentLabel, useDebounced } from '../lib/utils'
@@ -85,7 +85,8 @@ export default function Orders() {
   })
 
   const filtered = Boolean(q) || kind !== 'ALL'
-  const sel = useSelection(data?.rows.map((o) => o.id) ?? [])
+  const filterArgs = { status: status === 'ALL' ? undefined : status, kind: kind === 'ALL' ? undefined : kind, q: q || undefined, issue }
+  const sel = useSelection(data?.rows.map((o) => o.id) ?? [], { paged: true, resetKey: JSON.stringify(filterArgs) })
   const archive = useArchive('orders', sel.clear)
 
   return (
@@ -126,6 +127,13 @@ export default function Orders() {
           </Select>
         </div>
 
+        <SelectAllBanner
+          sel={sel}
+          visibleCount={data?.rows.length ?? 0}
+          total={data?.total ?? 0}
+          noun="orders"
+          fetchIds={async () => (await api.get<{ ids: string[] }>('/api/admin/orders/ids', filterArgs)).ids}
+        />
         {error && !data ? (
           <div className="p-4">
             <ErrorState error={error} onRetry={() => refetch()} />

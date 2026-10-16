@@ -24,17 +24,26 @@ export const ARCHIVE_LABEL: Record<ArchiveType, { one: string; many: string; eff
   messages: { one: 'message', many: 'messages', effect: 'They leave the inbox.' },
 }
 
-/** Checkbox selection over the rows currently on screen. Rows that leave the list are deselected. */
-export function useSelection(visibleIds: string[]) {
+/**
+ * Checkbox selection.
+ * - Client-side lists (everything loaded): rows that leave the list (search, filter) are deselected.
+ * - Paged lists (`paged`): the selection survives page changes, so "Select all N" can cover every
+ *   page; it is cleared when `resetKey` (the filter/search) changes.
+ */
+export function useSelection(visibleIds: string[], opts: { paged?: boolean; resetKey?: string } = {}) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const key = visibleIds.join(',')
   useEffect(() => {
+    if (opts.paged) return
     setSelected((cur) => {
       const keep = new Set([...cur].filter((id) => visibleIds.includes(id)))
       return keep.size === cur.size ? cur : keep
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key])
+  }, [key, opts.paged])
+  useEffect(() => {
+    if (opts.paged) setSelected(new Set())
+  }, [opts.paged, opts.resetKey])
   return useMemo(() => {
     const all = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id))
     const some = !all && visibleIds.some((id) => selected.has(id))
@@ -51,13 +60,70 @@ export function useSelection(visibleIds: string[]) {
         }),
       all,
       some,
-      toggleAll: () => setSelected(all ? new Set() : new Set(visibleIds)),
+      /** Header checkbox: selects or clears the rows on screen. */
+      toggleAll: () =>
+        setSelected((cur) => {
+          const next = new Set(cur)
+          if (all) visibleIds.forEach((id) => next.delete(id))
+          else visibleIds.forEach((id) => next.add(id))
+          return next
+        }),
+      selectIds: (ids: string[]) => setSelected(new Set(ids)),
       clear: () => setSelected(new Set()),
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, key])
 }
 export type Selection = ReturnType<typeof useSelection>
+
+/**
+ * Gmail-style "select everything": after the header checkbox selects a page, offer to select every
+ * item that matches the current filter (fetched from the server), and show when that is the case.
+ */
+export function SelectAllBanner({ sel, visibleCount, total, noun, fetchIds }: { sel: Selection; visibleCount: number; total: number; noun: string; fetchIds: () => Promise<string[]> }) {
+  const [loading, setLoading] = useState(false)
+  if (total <= visibleCount || !sel.count) return null
+  const everything = sel.count >= total
+  if (!everything && !sel.all) return null
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b bg-gold/10 px-4 py-2 text-center text-sm" role="status">
+      {everything ? (
+        <>
+          <span>
+            All <b className="tabular-nums">{num(sel.count)}</b> {noun} are selected.
+          </span>
+          <button type="button" className="font-medium text-gold-ink underline-offset-4 hover:underline" onClick={sel.clear}>
+            Clear selection
+          </button>
+        </>
+      ) : (
+        <>
+          <span>
+            All <b className="tabular-nums">{num(visibleCount)}</b> {noun} on this page are selected.
+          </span>
+          <button
+            type="button"
+            disabled={loading}
+            className="inline-flex items-center gap-1 font-medium text-gold-ink underline-offset-4 hover:underline"
+            onClick={async () => {
+              setLoading(true)
+              try {
+                sel.selectIds(await fetchIds())
+              } catch (e) {
+                toast.error(errorMessage(e))
+              } finally {
+                setLoading(false)
+              }
+            }}
+          >
+            {loading && <CircleNotchIcon className="size-3.5 animate-spin" />}
+            Select all {num(total)} {noun}
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
 
 /** Row / header checkbox that never triggers the row's own click. */
 export function SelectBox({ checked, indeterminate, onChange, label, className }: { checked: boolean; indeterminate?: boolean; onChange: () => void; label: string; className?: string }) {

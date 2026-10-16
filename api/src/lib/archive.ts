@@ -23,13 +23,10 @@ export async function archive(type: ArchiveType, ids: string[], by: string, self
 
   switch (type) {
     case 'orders': {
-      const rows = await db.order.findMany({ where: { id: { in: ids }, deletedAt: null }, select: { id: true, number: true, status: true } })
-      for (const o of rows) {
-        // An unpaid order could still be paid while hidden: cancel it first (stock and payment links are released).
-        if (o.status === 'PENDING_PAYMENT') await setOrderStatus(o.id, 'CANCELLED', by, { note: 'Cancelled when the order was archived' })
-        await db.order.update({ where: { id: o.id }, data: stamp(by) })
-        done++
-      }
+      // An unpaid order could still be paid while hidden: cancel it first (stock and payment links are released).
+      const unpaid = await db.order.findMany({ where: { id: { in: ids }, deletedAt: null, status: 'PENDING_PAYMENT' }, select: { id: true } })
+      for (const o of unpaid) await setOrderStatus(o.id, 'CANCELLED', by, { note: 'Cancelled when the order was archived' })
+      done = (await db.order.updateMany({ where: { id: { in: ids }, deletedAt: null }, data: stamp(by) })).count
       break
     }
     case 'products': {
@@ -84,7 +81,7 @@ export async function restore(type: ArchiveType, ids: string[]): Promise<BulkRes
 export type ArchivedRow = { id: string; title: string; detail: string; deletedAt: Date; deletedBy: string | null; href: string | null }
 
 /** Archived items of one type (newest first) plus how many of each type are archived. */
-export async function listArchived(type: ArchiveType, q = '') {
+export async function listArchived(type: ArchiveType, q = '', limit = 500) {
   const s = await getSettings()
   const del = { deletedAt: { not: null } } as const
   const order = { deletedAt: 'desc' } as const
@@ -96,14 +93,14 @@ export async function listArchived(type: ArchiveType, q = '') {
       const r = await db.order.findMany({
         where: { ...del, ...(q ? { OR: [{ number: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }, { name: { contains: q, mode: 'insensitive' } }] } : {}) },
         orderBy: order,
-        take: 500,
+        take: limit,
         select: { id: true, number: true, name: true, email: true, status: true, totalCents: true, deletedAt: true, deletedBy: true },
       })
       rows = r.map((o) => ({ id: o.id, title: o.number, detail: `${o.name} · ${o.email} · ${fmtMoney(s, o.totalCents)} · ${o.status.replace('_', ' ').toLowerCase()}`, deletedAt: o.deletedAt!, deletedBy: o.deletedBy, href: `/admin/orders/${o.id}` }))
       break
     }
     case 'products': {
-      const r = await db.product.findMany({ where: { ...del, ...like('name') }, orderBy: order, take: 500, select: { id: true, name: true, slug: true, status: true, deletedAt: true, deletedBy: true, _count: { select: { variants: true } } } })
+      const r = await db.product.findMany({ where: { ...del, ...like('name') }, orderBy: order, take: limit, select: { id: true, name: true, slug: true, status: true, deletedAt: true, deletedBy: true, _count: { select: { variants: true } } } })
       rows = r.map((p) => ({ id: p.id, title: p.name, detail: `${p.slug} · ${p._count.variants} sizes`, deletedAt: p.deletedAt!, deletedBy: p.deletedBy, href: `/admin/products/${p.id}` }))
       break
     }
@@ -111,14 +108,14 @@ export async function listArchived(type: ArchiveType, q = '') {
       const r = await db.user.findMany({
         where: { ...del, ...(q ? { OR: [{ email: { contains: q, mode: 'insensitive' } }, { name: { contains: q, mode: 'insensitive' } }] } : {}) },
         orderBy: order,
-        take: 500,
+        take: limit,
         select: { id: true, name: true, email: true, _count: { select: { orders: true } }, deletedAt: true, deletedBy: true },
       })
       rows = r.map((u) => ({ id: u.id, title: u.name, detail: `${u.email} · ${u._count.orders} orders`, deletedAt: u.deletedAt!, deletedBy: u.deletedBy, href: `/admin/customers/${u.id}` }))
       break
     }
     case 'coupons': {
-      const r = await db.coupon.findMany({ where: { ...del, ...like('code') }, orderBy: order, take: 500, select: { id: true, code: true, type: true, value: true, uses: true, deletedAt: true, deletedBy: true } })
+      const r = await db.coupon.findMany({ where: { ...del, ...like('code') }, orderBy: order, take: limit, select: { id: true, code: true, type: true, value: true, uses: true, deletedAt: true, deletedBy: true } })
       rows = r.map((c) => ({ id: c.id, title: c.code, detail: `${c.type === 'PERCENT' ? `${c.value}% off` : c.type === 'FIXED' ? `${fmtMoney(s, c.value)} off` : 'Free shipping'} · used ${c.uses} times`, deletedAt: c.deletedAt!, deletedBy: c.deletedBy, href: null }))
       break
     }
@@ -126,7 +123,7 @@ export async function listArchived(type: ArchiveType, q = '') {
       const r = await db.coa.findMany({
         where: { ...del, ...(q ? { OR: [{ lotNumber: { contains: q, mode: 'insensitive' } }, { product: { name: { contains: q, mode: 'insensitive' } } }] } : {}) },
         orderBy: order,
-        take: 500,
+        take: limit,
         select: { id: true, lotNumber: true, documentTitle: true, purity: true, product: { select: { name: true } }, deletedAt: true, deletedBy: true },
       })
       rows = r.map((c) => ({ id: c.id, title: `${c.product.name}${c.documentTitle ? ` / ${c.documentTitle}` : ''}`, detail: `Batch ${c.lotNumber} · ${Number(c.purity)}% purity`, deletedAt: c.deletedAt!, deletedBy: c.deletedBy, href: null }))
@@ -136,7 +133,7 @@ export async function listArchived(type: ArchiveType, q = '') {
       const r = await db.contactMessage.findMany({
         where: { ...del, ...(q ? { OR: [{ email: { contains: q, mode: 'insensitive' } }, { name: { contains: q, mode: 'insensitive' } }, { message: { contains: q, mode: 'insensitive' } }] } : {}) },
         orderBy: order,
-        take: 500,
+        take: limit,
         select: { id: true, name: true, email: true, topic: true, message: true, deletedAt: true, deletedBy: true },
       })
       rows = r.map((m) => ({ id: m.id, title: `${m.name} (${m.topic})`, detail: `${m.email} · ${m.message.slice(0, 90)}${m.message.length > 90 ? '…' : ''}`, deletedAt: m.deletedAt!, deletedBy: m.deletedBy, href: null }))

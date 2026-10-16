@@ -10,19 +10,28 @@ import { mailPartner } from '../../lib/mailer.js'
 
 export async function adminPeopleRoutes(app: FastifyInstance) {
   // ---------- Customers ----------
-  app.get('/customers', async (req) => {
-    const q = parse(
-      z.object({
-        q: z.string().max(80).optional(),
-        tier: z.enum(['MEMBER', 'INSIDER', 'VIP', 'FOUNDER']).optional(),
-        page: z.coerce.number().optional(),
-        pageSize: z.coerce.number().optional(),
-      }),
-      req.query,
-    )
+  const customerFilter = z.object({
+    q: z.string().max(80).optional(),
+    tier: z.enum(['MEMBER', 'INSIDER', 'VIP', 'FOUNDER']).optional(),
+    page: z.coerce.number().optional(),
+    pageSize: z.coerce.number().optional(),
+  })
+  const customerWhere = (q: z.infer<typeof customerFilter>): Prisma.UserWhereInput => {
     const where: Prisma.UserWhereInput = { deletedAt: null }
     if (q.tier) where.tier = q.tier
     if (q.q) where.OR = [{ email: { contains: q.q, mode: 'insensitive' } }, { name: { contains: q.q, mode: 'insensitive' } }, { phone: { contains: q.q } }]
+    return where
+  }
+
+  // Every customer matching the current filter, for "Select all N customers" across pages.
+  app.get('/customers/ids', async (req) => {
+    const rows = await db.user.findMany({ where: customerWhere(parse(customerFilter, req.query)), orderBy: { createdAt: 'desc' }, select: { id: true }, take: 10_000 })
+    return { ids: rows.map((r) => r.id) }
+  })
+
+  app.get('/customers', async (req) => {
+    const q = parse(customerFilter, req.query)
+    const where = customerWhere(q)
     const { page, pageSize, skip, take } = toPage(q)
     const [total, users] = await Promise.all([
       db.user.count({ where }),

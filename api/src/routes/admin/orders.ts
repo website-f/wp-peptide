@@ -13,32 +13,43 @@ import { boxExtras } from '../checkout.js'
 
 const STATUSES = ['PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REFUNDED'] as const
 
+const orderFilter = z.object({
+  status: z.enum([...STATUSES, 'OPEN']).optional(),
+  kind: z.enum(['STANDARD', 'BOX', 'WHOLESALE', 'MEMBERSHIP']).optional(),
+  q: z.string().max(80).optional(),
+  issue: z.literal('payment').optional(),
+  page: z.coerce.number().optional(),
+  pageSize: z.coerce.number().optional(),
+})
+
+/** The order list's filter, shared by the list and "select all matching". */
+function orderWhere(q: z.infer<typeof orderFilter>): Prisma.OrderWhereInput {
+  const where: Prisma.OrderWhereInput = { deletedAt: null }
+  if (q.status === 'OPEN') where.status = { in: ['PAID', 'PROCESSING'] }
+  else if (q.status) where.status = q.status
+  if (q.kind) where.kind = q.kind
+  if (q.issue === 'payment') where.AND = [PAYMENT_ISSUE]
+  if (q.q) {
+    where.OR = [
+      { number: { contains: q.q, mode: 'insensitive' } },
+      { email: { contains: q.q, mode: 'insensitive' } },
+      { name: { contains: q.q, mode: 'insensitive' } },
+      { trackingNumber: { contains: q.q, mode: 'insensitive' } },
+    ]
+  }
+  return where
+}
+
 export async function adminOrderRoutes(app: FastifyInstance) {
+  // Every order matching the current filter, for "Select all N orders" across pages.
+  app.get('/orders/ids', async (req) => {
+    const rows = await db.order.findMany({ where: orderWhere(parse(orderFilter, req.query)), orderBy: { createdAt: 'desc' }, select: { id: true }, take: 10_000 })
+    return { ids: rows.map((r) => r.id) }
+  })
+
   app.get('/orders', async (req) => {
-    const q = parse(
-      z.object({
-        status: z.enum([...STATUSES, 'OPEN']).optional(),
-        kind: z.enum(['STANDARD', 'BOX', 'WHOLESALE', 'MEMBERSHIP']).optional(),
-        q: z.string().max(80).optional(),
-        issue: z.literal('payment').optional(),
-        page: z.coerce.number().optional(),
-        pageSize: z.coerce.number().optional(),
-      }),
-      req.query,
-    )
-    const where: Prisma.OrderWhereInput = { deletedAt: null }
-    if (q.status === 'OPEN') where.status = { in: ['PAID', 'PROCESSING'] }
-    else if (q.status) where.status = q.status
-    if (q.kind) where.kind = q.kind
-    if (q.issue === 'payment') where.AND = [PAYMENT_ISSUE]
-    if (q.q) {
-      where.OR = [
-        { number: { contains: q.q, mode: 'insensitive' } },
-        { email: { contains: q.q, mode: 'insensitive' } },
-        { name: { contains: q.q, mode: 'insensitive' } },
-        { trackingNumber: { contains: q.q, mode: 'insensitive' } },
-      ]
-    }
+    const q = parse(orderFilter, req.query)
+    const where = orderWhere(q)
     const { page, pageSize, skip, take } = toPage(q)
     const [total, rows, counts] = await Promise.all([
       db.order.count({ where }),
