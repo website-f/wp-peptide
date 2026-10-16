@@ -42,6 +42,7 @@ export async function authRoutes(app: FastifyInstance) {
     const body = parse(z.object({ email: z.email(), password: z.string().min(1).max(128) }), req.body)
     const user = await db.user.findUnique({ where: { email: body.email.toLowerCase() } })
     if (!user || !(await verifyPassword(body.password, user.passwordHash))) throw new HttpError(401, 'Email or password is incorrect')
+    if (user.deletedAt) throw new HttpError(403, 'This account has been closed. Contact us if you need it back.')
     await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
     setSession(reply, user)
     return publicUser(user)
@@ -51,7 +52,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/api/auth/forgot', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (req) => {
     const { email } = parse(z.object({ email: z.email('Enter a valid email').max(160) }), req.body)
     const user = await db.user.findUnique({ where: { email: email.toLowerCase() } })
-    if (user) {
+    if (user && !user.deletedAt) {
       const recent = await db.passwordReset.count({ where: { userId: user.id, createdAt: { gt: new Date(Date.now() - 3600_000) } } })
       if (recent < 3) {
         const token = randomBytes(32).toString('base64url')

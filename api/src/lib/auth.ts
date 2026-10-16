@@ -34,7 +34,7 @@ export async function currentUser(req: FastifyRequest): Promise<User | null> {
   try {
     const payload = jwt.verify(token, env.jwtSecret) as { sub: string; v?: number }
     const user = await db.user.findUnique({ where: { id: payload.sub } })
-    return user && (payload.v ?? 0) === user.sessionVersion ? user : null
+    return user && !user.deletedAt && (payload.v ?? 0) === user.sessionVersion ? user : null
   } catch {
     return null
   }

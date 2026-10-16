@@ -8,7 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api } from '@/lib/api'
 import { date, moneyExact, plural, relative } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { ErrorState, Num, OrderStatusBadge, PageHeader, Pager, Panel, Pill, RowsSkeleton, SearchInput, Segmented } from '../components/kit'
+import { ArchiveButton, BulkBar, SelectBox, useArchive, useSelection } from '../components/bulk'
 import type { OrderKind, OrderList, OrderStatus } from '../lib/types'
 import { useLicensed } from '../lib/queries'
 import { kindLabel, orderKinds, paymentLabel, useDebounced } from '../lib/utils'
@@ -83,6 +85,8 @@ export default function Orders() {
   })
 
   const filtered = Boolean(q) || kind !== 'ALL'
+  const sel = useSelection(data?.rows.map((o) => o.id) ?? [])
+  const archive = useArchive('orders', sel.clear)
 
   return (
     <div className="space-y-4">
@@ -154,8 +158,9 @@ export default function Orders() {
             {/* Phone: stacked cards */}
             <ul className="divide-y md:hidden">
               {data.rows.map((o) => (
-                <li key={o.id}>
-                  <Link to={`/admin/orders/${o.id}`} className="block px-4 py-3 active:bg-muted/50">
+                <li key={o.id} className={cn('flex items-start gap-3 pl-4', sel.has(o.id) && 'bg-gold/5')}>
+                  <SelectBox className="pt-3.5" checked={sel.has(o.id)} onChange={() => sel.toggle(o.id)} label={`Select order ${o.number}`} />
+                  <Link to={`/admin/orders/${o.id}`} className="block min-w-0 flex-1 py-3 pr-4 active:bg-muted/50">
                     <div className="flex items-center justify-between gap-3">
                       <Num className="text-sm font-medium">{o.number}</Num>
                       <Num className="text-sm font-medium">{moneyExact(o.totalCents)}</Num>
@@ -183,7 +188,10 @@ export default function Orders() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="pl-4 text-xs text-muted-foreground">Order</TableHead>
+                    <TableHead className="w-10 pl-4">
+                      <SelectBox checked={sel.all} indeterminate={sel.some} onChange={sel.toggleAll} label="Select all orders on this page" />
+                    </TableHead>
+                    <TableHead className="text-xs text-muted-foreground">Order</TableHead>
                     <TableHead className="text-xs text-muted-foreground">Placed</TableHead>
                     <TableHead className="text-xs text-muted-foreground">Customer</TableHead>
                     <TableHead className="text-xs text-muted-foreground">Status</TableHead>
@@ -194,8 +202,11 @@ export default function Orders() {
                 </TableHeader>
                 <TableBody>
                   {data.rows.map((o) => (
-                    <TableRow key={o.id} className="cursor-pointer" onClick={() => navigate(`/admin/orders/${o.id}`)}>
-                      <TableCell className="pl-4">
+                    <TableRow key={o.id} className={cn('cursor-pointer', sel.has(o.id) && 'bg-gold/5')} onClick={() => navigate(`/admin/orders/${o.id}`)}>
+                      <TableCell className="w-10 pl-4">
+                        <SelectBox checked={sel.has(o.id)} onChange={() => sel.toggle(o.id)} label={`Select order ${o.number}`} />
+                      </TableCell>
+                      <TableCell>
                         <Link
                           to={`/admin/orders/${o.id}`}
                           onClick={(e) => e.stopPropagation()}
@@ -235,6 +246,10 @@ export default function Orders() {
           </div>
         )}
       </Panel>
+      <BulkBar count={sel.count} noun={sel.count === 1 ? 'order' : 'orders'} onClear={sel.clear}>
+        <ArchiveButton onClick={() => archive.ask(sel.ids)} />
+      </BulkBar>
+      {archive.dialog}
     </div>
   )
 }

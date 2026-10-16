@@ -1,5 +1,5 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
-import { ArrowCounterClockwiseIcon, CheckIcon, DownloadSimpleIcon, EnvelopeSimpleIcon, PaperPlaneTiltIcon, TrayIcon, UsersIcon } from '@phosphor-icons/react'
+import { ArchiveIcon, ArrowCounterClockwiseIcon, CheckIcon, DownloadSimpleIcon, EnvelopeSimpleIcon, PaperPlaneTiltIcon, TrayIcon, UsersIcon } from '@phosphor-icons/react'
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ import { date, num, relative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { CopyButton, ErrorState, Num, PageHeader, Panel, Pill, RowsSkeleton, SearchInput, Segmented } from '../components/kit'
 import type { ContactMessage, Subscriber } from '../lib/types'
+import { ArchiveButton, BulkBar, SelectBox, useArchive, useSelection } from '../components/bulk'
 import { useInvalidateAdmin } from '../lib/utils'
 
 type Tab = 'messages' | 'subscribers'
@@ -68,6 +69,24 @@ function Messages({ q, unhandled }: { q: UseQueryResult<ContactMessage[]>; unhan
   const [filter, setFilter] = useState<Filter>('open')
   const all = q.data ?? []
   const rows = all.filter((m) => (filter === 'all' ? true : filter === 'open' ? !m.handled : m.handled))
+  const sel = useSelection(rows.map((m) => m.id))
+  const archive = useArchive('messages', sel.clear)
+  const invalidate = useInvalidateAdmin()
+  const [marking, setMarking] = useState(false)
+
+  async function markHandled(ids: string[]) {
+    setMarking(true)
+    try {
+      await Promise.all(ids.map((id) => api.patch(`/api/admin/messages/${id}`, { handled: true })))
+      await invalidate()
+      toast.success(ids.length === 1 ? 'Marked as handled' : `${num(ids.length)} messages marked as handled`)
+      sel.clear()
+    } catch (e) {
+      toast.error(errorMessage(e))
+    } finally {
+      setMarking(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -107,11 +126,22 @@ function Messages({ q, unhandled }: { q: UseQueryResult<ContactMessage[]>; unhan
         />
       ) : (
         <div className="space-y-3">
+          <label className="flex w-fit cursor-pointer items-center gap-2 px-1 text-sm text-muted-foreground">
+            <SelectBox checked={sel.all} indeterminate={sel.some} onChange={sel.toggleAll} label="Select all messages shown" />
+            Select all
+          </label>
           {rows.map((m) => (
-            <MessageCard key={m.id} m={m} />
+            <MessageCard key={m.id} m={m} selected={sel.has(m.id)} onSelect={() => sel.toggle(m.id)} onArchive={() => archive.ask([m.id])} />
           ))}
         </div>
       )}
+      <BulkBar count={sel.count} noun={sel.count === 1 ? 'message' : 'messages'} onClear={sel.clear}>
+        <Button size="sm" variant="outline" disabled={marking} onClick={() => markHandled(sel.ids)}>
+          <CheckIcon /> Mark handled
+        </Button>
+        <ArchiveButton onClick={() => archive.ask(sel.ids)} />
+      </BulkBar>
+      {archive.dialog}
     </div>
   )
 }
@@ -126,7 +156,7 @@ function mailtoFor(m: ContactMessage) {
   return `mailto:${encodeURIComponent(m.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 }
 
-function MessageCard({ m }: { m: ContactMessage }) {
+function MessageCard({ m, selected, onSelect, onArchive }: { m: ContactMessage; selected: boolean; onSelect: () => void; onArchive: () => void }) {
   const invalidate = useInvalidateAdmin()
   const [busy, setBusy] = useState(false)
 
@@ -144,9 +174,11 @@ function MessageCard({ m }: { m: ContactMessage }) {
   }
 
   return (
-    <article className={cn('min-w-0 rounded-xl border bg-card', !m.handled && 'border-gold/30')}>
+    <article className={cn('min-w-0 rounded-xl border bg-card', !m.handled && 'border-gold/30', selected && 'ring-2 ring-gold/40')}>
       <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-4 pt-3">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-start gap-3">
+          <SelectBox className="pt-0.5" checked={selected} onChange={onSelect} label={`Select message from ${m.name}`} />
+          <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {!m.handled && <span className="size-2 shrink-0 rounded-full bg-gold" aria-label="Needs reply" />}
             <p className="truncate font-medium">{m.name}</p>
@@ -160,6 +192,7 @@ function MessageCard({ m }: { m: ContactMessage }) {
               {m.email}
             </a>
             <CopyButton text={m.email} label="Copy email" className="size-6" />
+          </div>
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1 text-xs text-muted-foreground">
@@ -192,6 +225,10 @@ function MessageCard({ m }: { m: ContactMessage }) {
             Mark handled
           </Button>
         )}
+        <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground hover:text-destructive" onClick={onArchive}>
+          <ArchiveIcon />
+          Archive
+        </Button>
       </footer>
     </article>
   )

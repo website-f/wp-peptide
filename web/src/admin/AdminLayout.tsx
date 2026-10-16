@@ -3,6 +3,7 @@ import {
   CertificateIcon,
   ChartLineUpIcon,
   GearSixIcon,
+  ArchiveIcon,
   HandshakeIcon,
   ListIcon,
   MoonIcon,
@@ -87,6 +88,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { to: '/admin/inbox', label: 'Inbox', icon: TrayIcon, badge: (q) => q.unreadMessages, badgeLabel: 'unread messages' },
       { to: '/admin/settings', label: 'Settings', icon: GearSixIcon },
+      { to: '/admin/archive', label: 'Archive', icon: ArchiveIcon },
     ],
   },
 ]

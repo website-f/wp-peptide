@@ -20,7 +20,7 @@ export async function adminPeopleRoutes(app: FastifyInstance) {
       }),
       req.query,
     )
-    const where: Prisma.UserWhereInput = {}
+    const where: Prisma.UserWhereInput = { deletedAt: null }
     if (q.tier) where.tier = q.tier
     if (q.q) where.OR = [{ email: { contains: q.q, mode: 'insensitive' } }, { name: { contains: q.q, mode: 'insensitive' } }, { phone: { contains: q.q } }]
     const { page, pageSize, skip, take } = toPage(q)
@@ -30,7 +30,7 @@ export async function adminPeopleRoutes(app: FastifyInstance) {
     ])
     const spend = await db.order.groupBy({
       by: ['userId'],
-      where: { userId: { in: users.map((u) => u.id) }, status: { in: LIVE } },
+      where: { userId: { in: users.map((u) => u.id) }, status: { in: LIVE }, deletedAt: null },
       _sum: { totalCents: true },
       _count: true,
       _max: { createdAt: true },

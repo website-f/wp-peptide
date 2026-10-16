@@ -85,26 +85,29 @@ enum SubscriptionStatus {
 }
 
 model User {
-  id                 String         @id @default(cuid())
-  email              String         @unique
+  id                 String          @id @default(cuid())
+  email              String          @unique
   passwordHash       String
   name               String
   phone              String?
-  role               Role           @default(CUSTOMER)
-  tier               Tier           @default(MEMBER)
+  role               Role            @default(CUSTOMER)
+  tier               Tier            @default(MEMBER)
   tierExpiresAt      DateTime?
-  pointsBalance      Int            @default(0)
-  createdAt          DateTime       @default(now())
+  pointsBalance      Int             @default(0)
+  createdAt          DateTime        @default(now())
   lastLoginAt        DateTime?
   // Set on the bootstrap admin so the one-time password must be replaced at first sign-in.
-  mustChangePassword Boolean        @default(false)
+  mustChangePassword Boolean         @default(false)
   /// Bumped on password change/reset: every session issued before it stops working.
-  sessionVersion     Int            @default(0)
+  sessionVersion     Int             @default(0)
   orders             Order[]
   passwordResets     PasswordReset[]
   affiliate          Affiliate?
   pointsTxns         PointsTxn[]
   subscriptions      Subscription[]
+  /// Soft delete: set when archived in the admin (restorable from Admin > Archive).
+  deletedAt          DateTime?
+  deletedBy          String?
 }
 
 /// "Forgot password" links. Only a SHA-256 of the token is stored; each link works once, for 1 hour.
@@ -155,6 +158,9 @@ model Product {
   variants         Variant[]
   coas             Coa[]
   orderItems       OrderItem[]
+  /// Soft delete: set when archived in the admin (restorable from Admin > Archive).
+  deletedAt        DateTime?
+  deletedBy        String?
 
   @@index([status, sortOrder])
 }
@@ -199,6 +205,9 @@ model Coa {
   /// View-only certificate pages: image base paths, rendered at `${base}-{900|1700}.{avif,webp}`.
   pages          String[]  @default([])
   createdAt      DateTime  @default(now())
+  /// Soft delete: set when archived in the admin (restorable from Admin > Archive).
+  deletedAt      DateTime?
+  deletedBy      String?
 
   @@unique([productId, lotNumber])
 }
@@ -252,19 +261,23 @@ model Order {
   events              OrderEvent[]
   commission          Commission?
   bills               PaymentBill[]
+  /// Soft delete: set when archived in the admin (restorable from Admin > Archive).
+  deletedAt           DateTime?
+  deletedBy           String?
 
   @@index([status, createdAt])
   @@index([createdAt])
   @@index([email])
+  @@index([deletedAt])
 }
 
 /// Every ToyyibPay bill issued for an order. A shopper can pay any of them (old tab, resent
 /// link), so payment checks look at all of them, each against the gateway it was created on.
 model PaymentBill {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   orderId     String
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  billCode    String   @unique
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  billCode    String    @unique
   /// "sandbox" or "production": which ToyyibPay the bill lives on.
   env         String
   amountCents Int
@@ -272,7 +285,7 @@ model PaymentBill {
   expiresAt   DateTime?
   /// Set once the bill can no longer be paid: deactivated at ToyyibPay, or it is the bill that paid.
   closedAt    DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@index([orderId, createdAt])
 }
@@ -332,6 +345,9 @@ model Coupon {
   categoryIds        String[]   @default([])
   description        String?
   createdAt          DateTime   @default(now())
+  /// Soft delete: set when archived in the admin (restorable from Admin > Archive).
+  deletedAt          DateTime?
+  deletedBy          String?
 }
 
 model Affiliate {
@@ -439,14 +455,17 @@ model Subscription {
 }
 
 model ContactMessage {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   email     String
-  topic     String   @default("General")
+  topic     String    @default("General")
   orderRef  String?
   message   String
-  handled   Boolean  @default(false)
-  createdAt DateTime @default(now())
+  handled   Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  /// Soft delete: set when archived in the admin (restorable from Admin > Archive).
+  deletedAt DateTime?
+  deletedBy String?
 }
 
 model Subscriber {

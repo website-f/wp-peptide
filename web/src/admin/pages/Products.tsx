@@ -11,6 +11,7 @@ import { api } from '@/lib/api'
 import { money, num } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ErrorState, Num, PageHeader, Panel, Pill, ProductStatusBadge, RowsSkeleton, SearchInput, Segmented } from '../components/kit'
+import { ArchiveButton, BulkBar, SelectBox, useArchive, useSelection } from '../components/bulk'
 import { useAdminSettings } from '../lib/queries'
 import type { AdminProduct, ProductStatus } from '../lib/types'
 
@@ -83,6 +84,8 @@ export default function Products() {
 
   const filtered = q.trim() !== '' || status !== 'all'
   const open = (id: string) => navigate(`/admin/products/${id}`)
+  const sel = useSelection(rows.map((p) => p.id))
+  const archive = useArchive('products', sel.clear)
 
   return (
     <div>
@@ -122,7 +125,7 @@ export default function Products() {
             { value: 'all', label: 'All', count: counts.all },
             { value: 'ACTIVE', label: 'Live', count: counts.ACTIVE },
             { value: 'DRAFT', label: 'Draft', count: counts.DRAFT },
-            { value: 'ARCHIVED', label: 'Archived', count: counts.ARCHIVED },
+            { value: 'ARCHIVED', label: 'Hidden', count: counts.ARCHIVED },
           ]}
         />
         <SearchInput value={q} onChange={(v) => setParam('q', v)} placeholder="Search name or SKU" className="w-full sm:w-72" />
@@ -164,7 +167,12 @@ export default function Products() {
           {/* Phones: stacked cards */}
           <div className="grid gap-2.5 md:hidden">
             {rows.map((p) => (
-              <ProductCard key={p.id} p={p} lowAt={lowAt} />
+              <div key={p.id} className="flex items-start gap-2.5">
+                <SelectBox className="pt-4" checked={sel.has(p.id)} onChange={() => sel.toggle(p.id)} label={`Select ${p.name}`} />
+                <div className="min-w-0 flex-1">
+                  <ProductCard p={p} lowAt={lowAt} />
+                </div>
+              </div>
             ))}
           </div>
 
@@ -173,6 +181,9 @@ export default function Products() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-10 pl-4">
+                    <SelectBox checked={sel.all} indeterminate={sel.some} onChange={sel.toggleAll} label="Select all products shown" />
+                  </TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground">Product</TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground">Status</TableHead>
                   <TableHead className="hidden text-xs font-medium text-muted-foreground xl:table-cell">Category</TableHead>
@@ -190,7 +201,10 @@ export default function Products() {
                   const stock = stockInfo(p, lowAt)
                   const range = priceRange(p)
                   return (
-                    <TableRow key={p.id} className="cursor-pointer" onClick={() => open(p.id)}>
+                    <TableRow key={p.id} className={cn('cursor-pointer', sel.has(p.id) && 'bg-gold/5')} onClick={() => open(p.id)}>
+                      <TableCell className="w-10 pl-4">
+                        <SelectBox checked={sel.has(p.id)} onChange={() => sel.toggle(p.id)} label={`Select ${p.name}`} />
+                      </TableCell>
                       <TableCell className="max-w-0 min-w-56 py-2.5">
                         <div className="flex min-w-0 items-center gap-3">
                           <ProductImage src={p.image} alt="" sizes="40px" className="size-10 shrink-0 rounded-md border [&_svg]:size-5" />
@@ -236,6 +250,10 @@ export default function Products() {
           <p className="mt-3 text-xs text-muted-foreground">
             Sold and revenue count paid orders only. Low stock means a size on sale has {lowAt} or fewer left.
           </p>
+          <BulkBar count={sel.count} noun={sel.count === 1 ? 'product' : 'products'} onClear={sel.clear}>
+            <ArchiveButton onClick={() => archive.ask(sel.ids)} />
+          </BulkBar>
+          {archive.dialog}
         </>
       )}
     </div>

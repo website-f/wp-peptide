@@ -1,10 +1,12 @@
 import type { FastifyInstance } from 'fastify'
+import type { User } from '@prisma/client'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { db } from '../../lib/db.js'
 import { env } from '../../lib/env.js'
 import { badRequest, csvEscape, parse } from '../../lib/http.js'
 import { getSettings, licensed, saveSettings, type StoreSettings } from '../../lib/settings.js'
+import { archive } from '../../lib/archive.js'
 import { gatewayStatus } from '../../lib/gateway.js'
 import { TEST_GROUPS, sendTestEmails, testEmails } from '../../lib/mailer.js'
 
@@ -42,6 +44,8 @@ const couponSchema = z
 
 async function checkCoupon(body: z.infer<typeof couponSchema>) {
   if (await db.affiliate.findUnique({ where: { couponCode: body.code } })) throw badRequest('A partner already uses that code')
+  const archived = await db.coupon.findFirst({ where: { code: body.code, deletedAt: { not: null } }, select: { id: true } })
+  if (archived) throw badRequest('An archived coupon uses this code. Restore it from Admin > Archive, or choose another code.')
   if (body.productIds.length) {
     const n = await db.product.count({ where: { id: { in: body.productIds } } })
     if (n !== new Set(body.productIds).size) throw badRequest('One of the chosen products no longer exists')
@@ -197,11 +201,11 @@ function adminView(s: StoreSettings) {
 
 export async function adminStoreRoutes(app: FastifyInstance) {
   app.get('/coupons', async () => {
-    const coupons = await db.coupon.findMany({ orderBy: [{ active: 'desc' }, { createdAt: 'desc' }] })
+    const coupons = await db.coupon.findMany({ where: { deletedAt: null }, orderBy: [{ active: 'desc' }, { createdAt: 'desc' }] })
     // Real performance per code: paid orders, discount given and sales it brought in.
     const stats = await db.order.groupBy({
       by: ['couponCode'],
-      where: { couponCode: { in: coupons.map((c) => c.code) }, status: { in: ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] } },
+      where: { couponCode: { in: coupons.map((c) => c.code) }, status: { in: ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] }, deletedAt: null },
       _count: true,
       _sum: { couponDiscountCents: true, totalCents: true },
     })
@@ -216,11 +220,12 @@ export async function adminStoreRoutes(app: FastifyInstance) {
     return db.coupon.update({ where: { id: (req.params as { id: string }).id }, data: data as Prisma.CouponUpdateInput })
   })
   app.delete('/coupons/:id', async (req) => {
-    await db.coupon.delete({ where: { id: (req.params as { id: string }).id } })
+    const admin = (req as unknown as { admin: User }).admin
+    await archive('coupons', [(req.params as { id: string }).id], admin.email, admin.id)
     return { ok: true }
   })
 
-  app.get('/messages', async () => db.contactMessage.findMany({ orderBy: [{ handled: 'asc' }, { createdAt: 'desc' }], take: 300 }))
+  app.get('/messages', async () => db.contactMessage.findMany({ where: { deletedAt: null }, orderBy: [{ handled: 'asc' }, { createdAt: 'desc' }], take: 300 }))
   app.patch('/messages/:id', async (req) => {
     const body = parse(z.object({ handled: z.boolean() }), req.body)
     await db.contactMessage.update({ where: { id: (req.params as { id: string }).id }, data: body })

@@ -47,6 +47,7 @@ const AdminSubscriptions = p(() => import('@/admin/pages/Subscriptions'))
 const AdminCoupons = p(() => import('@/admin/pages/Coupons'))
 const AdminInbox = p(() => import('@/admin/pages/Inbox'))
 const AdminSettings = p(() => import('@/admin/pages/Settings'))
+const AdminArchive = p(() => import('@/admin/pages/Archive'))
 
 const router = createBrowserRouter([
   {
@@ -97,6 +98,7 @@ const router = createBrowserRouter([
       { path: 'coupons', element: <AdminCoupons /> },
       { path: 'inbox', element: <AdminInbox /> },
       { path: 'settings', element: <AdminSettings /> },
+      { path: 'archive', element: <AdminArchive /> },
     ],
   },
 ])

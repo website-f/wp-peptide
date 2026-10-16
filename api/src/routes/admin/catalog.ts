@@ -1,4 +1,6 @@
 import type { FastifyInstance } from 'fastify'
+import type { User } from '@prisma/client'
+import { archive } from '../../lib/archive.js'
 import { z } from 'zod'
 import { db } from '../../lib/db.js'
 import { badRequest, notFound, parse } from '../../lib/http.js'
@@ -66,12 +68,13 @@ const coaSchema = z.object({
 export async function adminCatalogRoutes(app: FastifyInstance) {
   app.get('/products', async () => {
     const rows = await db.product.findMany({
+      where: { deletedAt: null },
       orderBy: [{ status: 'asc' }, { sortOrder: 'asc' }, { name: 'asc' }],
       include: { ...productInclude, _count: { select: { orderItems: true } } },
     })
     const sold = await db.orderItem.groupBy({
       by: ['productId'],
-      where: { order: { status: { in: ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] } } },
+      where: { order: { status: { in: ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'] }, deletedAt: null } },
       _sum: { quantity: true, lineTotalCents: true },
     })
     return rows.map((p) => {
@@ -116,15 +119,11 @@ export async function adminCatalogRoutes(app: FastifyInstance) {
   app.post('/products', async (req) => saveProduct(null, req.body))
   app.put('/products/:id', async (req) => saveProduct((req.params as { id: string }).id, req.body))
 
+  // "Delete" archives (restorable from Admin > Archive); order history keeps its product.
   app.delete('/products/:id', async (req) => {
-    const { id } = req.params as { id: string }
-    const used = await db.orderItem.count({ where: { productId: id } })
-    if (used > 0) {
-      await db.product.update({ where: { id }, data: { status: 'ARCHIVED' } })
-      return { archived: true }
-    }
-    await db.product.delete({ where: { id } })
-    return { deleted: true }
+    const admin = (req as unknown as { admin: User }).admin
+    await archive('products', [(req.params as { id: string }).id], admin.email, admin.id)
+    return { archived: true }
   })
 
   app.patch('/variants/:id/stock', async (req) => {
@@ -151,7 +150,7 @@ export async function adminCatalogRoutes(app: FastifyInstance) {
   })
 
   app.get('/coas', async () => {
-    const rows = await db.coa.findMany({ orderBy: { testedAt: 'desc' }, include: { product: { select: { id: true, name: true, image: true } } } })
+    const rows = await db.coa.findMany({ where: { deletedAt: null }, orderBy: { testedAt: 'desc' }, include: { product: { select: { id: true, name: true, image: true } } } })
     return rows.map((c) => ({ ...coaAdmin(c), product: c.product }))
   })
   app.post('/coas', async (req) => {
@@ -163,7 +162,8 @@ export async function adminCatalogRoutes(app: FastifyInstance) {
     return coaAdmin(c)
   })
   app.delete('/coas/:id', async (req) => {
-    await db.coa.delete({ where: { id: (req.params as { id: string }).id } })
+    const admin = (req as unknown as { admin: User }).admin
+    await archive('coas', [(req.params as { id: string }).id], admin.email, admin.id)
     return { ok: true }
   })
 

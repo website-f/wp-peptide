@@ -20,8 +20,9 @@ import {
   XCircleIcon,
 } from '@phosphor-icons/react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { ArchiveOneButton, ArchivedNotice } from '../components/bulk'
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { ProductImage } from '@/components/brand/ProductImage'
 import { Button } from '@/components/ui/button'
@@ -57,6 +58,7 @@ const CARRIERS = ['J&T Express', 'Pos Laju', 'DHL eCommerce', 'Ninja Van', 'City
 type StatusBody = { status: OrderStatus; carrier?: string; trackingNumber?: string; paymentRef?: string; note?: string }
 
 export default function OrderDetail() {
+  const navigate = useNavigate()
   const { id = '' } = useParams()
   const licensed = useLicensed()
   const { data: o, isLoading, error, refetch } = useQuery({
@@ -93,14 +95,18 @@ export default function OrderDetail() {
           </>
         }
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <a href={`/order/${o.number}?key=${o.accessKey}`} target="_blank" rel="noreferrer">
-              <ArrowSquareOutIcon />
-              Customer view
-            </a>
-          </Button>
+          <>
+            <Button variant="outline" size="sm" asChild>
+              <a href={`/order/${o.number}?key=${o.accessKey}`} target="_blank" rel="noreferrer">
+                <ArrowSquareOutIcon />
+                Customer view
+              </a>
+            </Button>
+            {!o.deletedAt && <ArchiveOneButton type="orders" id={o.id} after={() => navigate('/admin/orders')} />}
+          </>
         }
       />
+      {o.deletedAt && <ArchivedNotice type="orders" id={o.id} deletedAt={o.deletedAt} deletedBy={o.deletedBy} />}
 
       <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
         <div className="min-w-0 lg:col-start-3 lg:row-start-1">

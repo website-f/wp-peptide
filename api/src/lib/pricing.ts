@@ -139,7 +139,7 @@ export async function buildQuote(input: QuoteInput): Promise<Quote> {
   const lines: QuoteLine[] = []
   for (const [variantId, quantity] of wanted) {
     const v = variants.find((x) => x.id === variantId)
-    if (!v || !v.active || v.product.status !== 'ACTIVE') {
+    if (!v || !v.active || v.product.status !== 'ACTIVE' || v.product.deletedAt) {
       warnings.push('An item in your cart is no longer available and was removed')
       continue
     }
@@ -208,7 +208,9 @@ export async function buildQuote(input: QuoteInput): Promise<Quote> {
   let affiliate: Affiliate | null = null
   const code = input.couponCode?.trim().toUpperCase()
   if (code) {
-    const storeCoupon = await db.coupon.findUnique({ where: { code } })
+    const found = await db.coupon.findUnique({ where: { code } })
+    // Archived coupons are dead codes for shoppers.
+    const storeCoupon = found?.deletedAt ? null : found
     const partner = storeCoupon ? null : await db.affiliate.findUnique({ where: { couponCode: code } })
     if (storeCoupon) {
       const problem = await couponProblem(s, storeCoupon, mode, afterTier, user, email)

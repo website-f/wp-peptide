@@ -440,8 +440,7 @@ function Editor({ product }: { product?: AdminProduct }) {
     const r = await api.del<{ archived?: boolean; deleted?: boolean }>(`/api/admin/products/${saved!.id}`)
     skipBlock.current = true
     invalidate()
-    if (r.archived) toast.success('Product archived. It is hidden from the store and kept for order history.')
-    else toast.success('Product deleted')
+    if (r.archived) toast.success('Product archived. Restore it any time from Archive.')
     navigate('/admin/products')
   }
 
@@ -784,9 +783,9 @@ function Editor({ product }: { product?: AdminProduct }) {
         <ConfirmDialog
           open={confirmDelete}
           onOpenChange={setConfirmDelete}
-          title="Delete this product?"
-          description="Products with past orders are archived (hidden from the store, kept for order history). Products never ordered are deleted permanently."
-          confirmLabel="Delete product"
+          title="Archive this product?"
+          description="It disappears from the shop and the product list and can no longer be bought. Past orders keep showing it. You can restore it any time from Archive."
+          confirmLabel="Archive product"
           onConfirm={remove}
         />
       )}

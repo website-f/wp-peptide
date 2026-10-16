@@ -64,7 +64,7 @@ export const PAYOUT_STATUS: Record<PayoutStatus, { label: string; tone: Tone }> 
 export const PRODUCT_STATUS: Record<ProductStatus, { label: string; tone: Tone; help: string }> = {
   ACTIVE: { label: 'Live', tone: 'success', help: 'Visible in the store and can be bought.' },
   DRAFT: { label: 'Draft', tone: 'warning', help: 'Hidden from the store while you work on it.' },
-  ARCHIVED: { label: 'Archived', tone: 'muted', help: 'Retired. Hidden from the store, kept for order history.' },
+  ARCHIVED: { label: 'Hidden', tone: 'muted', help: 'Hidden from the shop but kept in the product list. To remove a product, archive it instead.' },
 }
 
 export const SUBSCRIPTION_STATUS: Record<SubscriptionStatus, { label: string; tone: Tone }> = {

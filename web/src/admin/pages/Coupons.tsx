@@ -46,6 +46,7 @@ import {
   TextInput,
 } from '../components/kit'
 import { useAdminCategories, useAdminProducts, useAdminSettings } from '../lib/queries'
+import { ArchiveButton, BulkBar, SelectBox, useArchive, useSelection } from '../components/bulk'
 import type { AdminCategory, AdminProduct, Coupon, CouponMode, CouponType } from '../lib/types'
 import { centsToInput, isoDay, toCents, useInvalidateAdmin } from '../lib/utils'
 import type { Tone } from '../lib/utils'
@@ -157,7 +158,6 @@ export default function Coupons() {
   const categories = useAdminCategories()
   const names = useNames(products.data, categories.data)
   const [editing, setEditing] = useState<Editing>(null)
-  const [deleting, setDeleting] = useState<Coupon | null>(null)
   const [toggling, setToggling] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
@@ -187,11 +187,13 @@ export default function Coupons() {
       (c) => (filter === 'all' || statusOf(c) === filter) && (!term || c.code.toLowerCase().includes(term) || (c.description ?? '').toLowerCase().includes(term)),
     )
   }, [all, filter, search])
+  const sel = useSelection(rows.map((c) => c.id))
+  const archive = useArchive('coupons', sel.clear)
 
   const actions = (c: Coupon) => ({
     edit: () => setEditing({ mode: 'edit', coupon: c }),
     duplicate: () => setEditing({ mode: 'new', from: c }),
-    remove: () => setDeleting(c),
+    remove: () => archive.ask([c.id]),
   })
 
   return (
@@ -283,9 +285,10 @@ export default function Coupons() {
                     const st = statusOf(c)
                     const a = actions(c)
                     return (
-                      <li key={c.id} className="px-4 py-3">
+                      <li key={c.id} className={cn('px-4 py-3', sel.has(c.id) && 'bg-gold/5')}>
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
+                          <SelectBox className="pt-0.5" checked={sel.has(c.id)} onChange={() => sel.toggle(c.id)} label={`Select ${c.code}`} />
+                          <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-1.5">
                               <Num className="truncate font-medium">{c.code}</Num>
                               <CopyButton text={c.code} label={`Copy ${c.code}`} />
@@ -314,7 +317,10 @@ export default function Coupons() {
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
-                        <TableHead className="pl-4 text-xs font-medium text-muted-foreground">Code</TableHead>
+                        <TableHead className="w-10 pl-4">
+                          <SelectBox checked={sel.all} indeterminate={sel.some} onChange={sel.toggleAll} label="Select all coupons shown" />
+                        </TableHead>
+                        <TableHead className="text-xs font-medium text-muted-foreground">Code</TableHead>
                         <TableHead className="text-xs font-medium text-muted-foreground">Rule</TableHead>
                         <TableHead className="text-xs font-medium text-muted-foreground">Status</TableHead>
                         <TableHead className="text-right text-xs font-medium text-muted-foreground">Uses</TableHead>
@@ -331,8 +337,11 @@ export default function Coupons() {
                         const st = statusOf(c)
                         const a = actions(c)
                         return (
-                          <TableRow key={c.id} className="cursor-pointer" onClick={a.edit}>
-                            <TableCell className="max-w-56 pl-4 align-top">
+                          <TableRow key={c.id} className={cn('cursor-pointer', sel.has(c.id) && 'bg-gold/5')} onClick={a.edit}>
+                            <TableCell className="w-10 pl-4 align-top">
+                              <SelectBox checked={sel.has(c.id)} onChange={() => sel.toggle(c.id)} label={`Select ${c.code}`} />
+                            </TableCell>
+                            <TableCell className="max-w-56 align-top">
                               <div className="flex items-center gap-1">
                                 <Num className="font-medium">{c.code}</Num>
                                 <span onClick={(e) => e.stopPropagation()}>
@@ -369,6 +378,9 @@ export default function Coupons() {
               </>
             )}
           </Panel>
+          <BulkBar count={sel.count} noun={sel.count === 1 ? 'coupon' : 'coupons'} onClear={sel.clear}>
+            <ArchiveButton onClick={() => archive.ask(sel.ids)} />
+          </BulkBar>
           <p className="text-xs text-muted-foreground">
             Uses count orders placed with the code. A use is given back when an order is cancelled or refunded. Paid orders, discount given and sales count paid orders only.
           </p>
@@ -384,21 +396,7 @@ export default function Coupons() {
         onSaved={invalidate}
       />
 
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(o) => !o && setDeleting(null)}
-        title="Delete coupon?"
-        description={
-          deleting ? `${deleting.code} will stop working straight away. Past orders that used it keep their discount. To stop it for now instead, pause it.` : undefined
-        }
-        confirmLabel="Delete coupon"
-        onConfirm={async () => {
-          if (!deleting) return
-          await api.del(`/api/admin/coupons/${deleting.id}`)
-          await invalidate()
-          toast.success(`${deleting.code} deleted`)
-        }}
-      />
+      {archive.dialog}
     </div>
   )
 }

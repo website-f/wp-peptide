@@ -50,21 +50,22 @@ export async function reportRoutes(app: FastifyInstance) {
     const [paid, prevPaid, statusCounts, newCustomers, prevCustomers, totalCustomers, recent, lowStock, affPending, payoutReqs, owed, unread, activeSubs] =
       await Promise.all([
         db.order.findMany({
-          where: { paidAt: { gte: from, lte: to }, status: { in: LIVE } },
+          where: { deletedAt: null, paidAt: { gte: from, lte: to }, status: { in: LIVE } },
           select: { id: true, totalCents: true, paidAt: true, kind: true },
         }),
-        db.order.aggregate({ where: { paidAt: { gte: prevFrom, lt: from }, status: { in: LIVE } }, _sum: { totalCents: true }, _count: true }),
-        db.order.groupBy({ by: ['status'], _count: true }),
-        db.user.count({ where: { role: 'CUSTOMER', createdAt: { gte: from, lte: to } } }),
-        db.user.count({ where: { role: 'CUSTOMER', createdAt: { gte: prevFrom, lt: from } } }),
-        db.user.count({ where: { role: 'CUSTOMER' } }),
+        db.order.aggregate({ where: { deletedAt: null, paidAt: { gte: prevFrom, lt: from }, status: { in: LIVE } }, _sum: { totalCents: true }, _count: true }),
+        db.order.groupBy({ by: ['status'], where: { deletedAt: null }, _count: true }),
+        db.user.count({ where: { role: 'CUSTOMER', deletedAt: null, createdAt: { gte: from, lte: to } } }),
+        db.user.count({ where: { role: 'CUSTOMER', deletedAt: null, createdAt: { gte: prevFrom, lt: from } } }),
+        db.user.count({ where: { role: 'CUSTOMER', deletedAt: null } }),
         db.order.findMany({
+          where: { deletedAt: null },
           orderBy: { createdAt: 'desc' },
           take: 8,
           select: { id: true, number: true, name: true, email: true, totalCents: true, status: true, kind: true, createdAt: true },
         }),
         db.variant.findMany({
-          where: { active: true, stock: { lte: lowAt }, product: { status: 'ACTIVE' } },
+          where: { active: true, stock: { lte: lowAt }, product: { status: 'ACTIVE', deletedAt: null } },
           orderBy: { stock: 'asc' },
           take: 8,
           include: { product: { select: { id: true, name: true, image: true } } },
@@ -72,7 +73,7 @@ export async function reportRoutes(app: FastifyInstance) {
         db.affiliate.count({ where: { status: 'PENDING' } }),
         db.payout.aggregate({ where: { status: 'REQUESTED' }, _sum: { amountCents: true }, _count: true }),
         db.commission.aggregate({ where: { status: { in: ['PENDING', 'APPROVED'] } }, _sum: { amountCents: true } }),
-        db.contactMessage.count({ where: { handled: false } }),
+        db.contactMessage.count({ where: { handled: false, deletedAt: null } }),
         db.subscription.count({ where: { status: 'ACTIVE' } }),
       ])
 
@@ -90,7 +91,7 @@ export async function reportRoutes(app: FastifyInstance) {
 
     const top = await db.orderItem.groupBy({
       by: ['productId'],
-      where: { productId: { not: null }, order: { paidAt: { gte: from, lte: to }, status: { in: LIVE } } },
+      where: { productId: { not: null }, order: { deletedAt: null, paidAt: { gte: from, lte: to }, status: { in: LIVE } } },
       _sum: { lineTotalCents: true, quantity: true },
       orderBy: { _sum: { lineTotalCents: 'desc' } },
       take: 6,
@@ -121,7 +122,7 @@ export async function reportRoutes(app: FastifyInstance) {
         payoutRequestedCents: payoutReqs._sum.amountCents ?? 0,
         commissionsOwedCents: owed._sum.amountCents ?? 0,
         unreadMessages: unread,
-        paymentIssues: await db.order.count({ where: PAYMENT_ISSUE }),
+        paymentIssues: await db.order.count({ where: { deletedAt: null, ...PAYMENT_ISSUE } }),
       },
       series,
       topProducts: top.map((t) => ({
@@ -146,12 +147,12 @@ export async function reportRoutes(app: FastifyInstance) {
 
     const [orders, refunded, liability, owed, paidOut] = await Promise.all([
       db.order.findMany({
-        where: { paidAt: { gte: from, lte: to } },
+        where: { deletedAt: null, paidAt: { gte: from, lte: to } },
         include: { commission: { select: { amountCents: true, status: true } } },
       }),
       // Money returned: refunds, plus orders that were paid and then cancelled.
       db.order.findMany({
-        where: { OR: [{ refundedAt: { gte: from, lte: to } }, { status: 'CANCELLED', paidAt: { not: null }, cancelledAt: { gte: from, lte: to } }] },
+        where: { deletedAt: null, OR: [{ refundedAt: { gte: from, lte: to } }, { status: 'CANCELLED', paidAt: { not: null }, cancelledAt: { gte: from, lte: to } }] },
         select: { totalCents: true, refundedAt: true, cancelledAt: true },
       }),
       db.user.aggregate({ _sum: { pointsBalance: true } }),
@@ -219,11 +220,11 @@ export async function reportRoutes(app: FastifyInstance) {
 
     const items = await db.orderItem.groupBy({
       by: ['productId', 'name'],
-      where: { productId: { not: null }, order: { paidAt: { gte: from, lte: to }, status: { in: LIVE } } },
+      where: { productId: { not: null }, order: { deletedAt: null, paidAt: { gte: from, lte: to }, status: { in: LIVE } } },
       _sum: { lineTotalCents: true, quantity: true },
     })
     const costs = await db.orderItem.findMany({
-      where: { productId: { not: null }, order: { paidAt: { gte: from, lte: to }, status: { in: LIVE } } },
+      where: { productId: { not: null }, order: { deletedAt: null, paidAt: { gte: from, lte: to }, status: { in: LIVE } } },
       select: { productId: true, unitCostCents: true, quantity: true },
     })
     const costBy = new Map<string, number>()
@@ -249,7 +250,7 @@ export async function reportRoutes(app: FastifyInstance) {
   app.get('/finance/export.csv', async (req, reply) => {
     const { from, to } = rangeFrom(parse(financeQuery, req.query))
     const orders = await db.order.findMany({
-      where: { createdAt: { gte: from, lte: to } },
+      where: { deletedAt: null, createdAt: { gte: from, lte: to } },
       orderBy: { createdAt: 'asc' },
       include: { affiliate: { select: { code: true } }, commission: { select: { amountCents: true, status: true } } },
     })

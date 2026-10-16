@@ -111,6 +111,9 @@ export interface Commission {
 
 export interface OrderDetail {
   id: string
+  /** Set when archived (soft-deleted). */
+  deletedAt?: string | null
+  deletedBy?: string | null
   number: string
   accessKey: string
   kind: OrderKind
@@ -264,6 +267,9 @@ export interface PointsTxn {
 
 export interface CustomerDetail {
   id: string
+  /** Set when archived (soft-deleted). */
+  deletedAt?: string | null
+  deletedBy?: string | null
   email: string
   name: string
   phone: string | null

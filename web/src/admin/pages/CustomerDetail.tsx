@@ -12,6 +12,7 @@ import {
   ShieldCheckIcon,
 } from '@phosphor-icons/react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { ArchiveOneButton, ArchivedNotice } from '../components/bulk'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -70,6 +71,7 @@ export default function CustomerDetail() {
 }
 
 function CustomerView({ c }: { c: Customer }) {
+  const navigate = useNavigate()
   const [editOpen, setEditOpen] = useState(false)
   // Nothing about tiers appears unless the membership add-on is licensed.
   const licensed = useLicensed()
@@ -109,12 +111,20 @@ function CustomerView({ c }: { c: Customer }) {
           </>
         }
         actions={
-          <Button variant="outline" onClick={() => setEditOpen(true)}>
-            <PencilSimpleIcon />
-            Edit details
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setEditOpen(true)}>
+              <PencilSimpleIcon />
+              Edit details
+            </Button>
+            {!c.deletedAt && c.role !== 'ADMIN' && <ArchiveOneButton type="customers" id={c.id} after={() => navigate('/admin/customers')} />}
+          </>
         }
       />
+      {c.deletedAt && (
+        <div className="mb-6">
+          <ArchivedNotice type="customers" id={c.id} deletedAt={c.deletedAt} deletedBy={c.deletedBy} />
+        </div>
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Paid orders" value={num(c.stats.orders)} info="Paid orders that were not cancelled or refunded. Unpaid orders are listed below but not counted here." icon={<ReceiptIcon />} />

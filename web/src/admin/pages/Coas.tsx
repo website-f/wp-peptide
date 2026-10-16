@@ -26,8 +26,9 @@ import { api, errorMessage } from '@/lib/api'
 import { date } from '@/lib/format'
 import type { Coa } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { ConfirmDialog, ErrorState, Field, Num, NumberInput, PageHeader, Panel, Pill, RowsSkeleton, SearchInput, TextInput } from '../components/kit'
+import { ErrorState, Field, Num, NumberInput, PageHeader, Panel, Pill, RowsSkeleton, SearchInput, TextInput } from '../components/kit'
 import type { AdminCoa, AdminProduct } from '../lib/types'
+import { ArchiveButton, BulkBar, SelectBox, useArchive, useSelection } from '../components/bulk'
 import { isoDay, useInvalidateAdmin } from '../lib/utils'
 
 const ALL = 'all'
@@ -157,12 +158,10 @@ const asViewerDoc = (c: AdminCoa): Coa => ({ ...c, product: undefined })
 type DialogState = { open: boolean; coa: AdminCoa | null; productId?: string; key: number }
 
 export default function Coas() {
-  const invalidate = useInvalidateAdmin()
   const [params, setParams] = useSearchParams()
   const productFilter = params.get('product') ?? ALL
   const [q, setQ] = useState('')
   const [dialog, setDialog] = useState<DialogState>({ open: false, coa: null, key: 0 })
-  const [deleting, setDeleting] = useState<AdminCoa | null>(null)
   const [preview, setPreview] = useState<AdminCoa | null>(null)
 
   const coasQuery = useQuery({ queryKey: ['admin', 'coas'], queryFn: () => api.get<AdminCoa[]>('/api/admin/coas') })
@@ -216,12 +215,9 @@ export default function Coas() {
     })
   }, [coas, q, productFilter])
 
-  const remove = async () => {
-    if (!deleting) return
-    await api.del(`/api/admin/coas/${deleting.id}`)
-    invalidate()
-    toast.success(`Certificate ${deleting.lotNumber} deleted`)
-  }
+  const sel = useSelection(rows.map((c) => c.id))
+  const archive = useArchive('coas', sel.clear)
+  const setDeleting = (c: AdminCoa) => archive.ask([c.id])
 
   const filtered = q.trim() !== '' || productFilter !== ALL
   const head = 'text-xs font-medium text-muted-foreground'
@@ -327,7 +323,9 @@ export default function Coas() {
           {/* Phones */}
           <div className="grid gap-2.5 md:hidden">
             {rows.map((c) => (
-              <div key={c.id} className="rounded-xl border bg-card p-3">
+              <div key={c.id} className={cn('rounded-xl border bg-card p-3', sel.has(c.id) && 'ring-2 ring-gold/40')}>
+                <div className="flex items-start gap-2.5">
+                <SelectBox className="pt-3.5" checked={sel.has(c.id)} onChange={() => sel.toggle(c.id)} label={`Select batch ${c.lotNumber}`} />
                 <button type="button" onClick={() => openEdit(c)} className="flex w-full min-w-0 items-start gap-3 text-left">
                   <ProductImage src={c.product.image} alt="" sizes="48px" className="size-12 shrink-0 rounded-md border [&_svg]:size-5" />
                   <div className="min-w-0 flex-1">
@@ -342,6 +340,7 @@ export default function Coas() {
                     </p>
                   </div>
                 </button>
+                </div>
                 <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2.5">
                   <PagesLink coa={c} onPreview={() => setPreview(c)} />
                   <div className="flex gap-1">
@@ -363,6 +362,9 @@ export default function Coas() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-10 pl-4">
+                    <SelectBox checked={sel.all} indeterminate={sel.some} onChange={sel.toggleAll} label="Select all certificates shown" />
+                  </TableHead>
                   <TableHead className={head}>Product</TableHead>
                   <TableHead className={head}>Batch</TableHead>
                   <TableHead className={head}>Size</TableHead>
@@ -377,7 +379,10 @@ export default function Coas() {
               </TableHeader>
               <TableBody>
                 {rows.map((c) => (
-                  <TableRow key={c.id} className="cursor-pointer" onClick={() => openEdit(c)}>
+                  <TableRow key={c.id} className={cn('cursor-pointer', sel.has(c.id) && 'bg-gold/5')} onClick={() => openEdit(c)}>
+                    <TableCell className="w-10 pl-4">
+                      <SelectBox checked={sel.has(c.id)} onChange={() => sel.toggle(c.id)} label={`Select batch ${c.lotNumber}`} />
+                    </TableCell>
                     <TableCell className="max-w-0 min-w-48 py-2.5">
                       <div className="flex min-w-0 items-center gap-3">
                         <ProductImage src={c.product.image} alt="" sizes="36px" className="size-9 shrink-0 rounded-md border [&_svg]:size-4" />
@@ -447,18 +452,10 @@ export default function Coas() {
         onOpenChange={(o) => !o && setPreview(null)}
       />
 
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(o) => !o && setDeleting(null)}
-        title="Delete this certificate?"
-        description={
-          deleting
-            ? `Lot ${deleting.lotNumber} for ${deleting.product.name} will be removed from the product page and the public COA library. This cannot be undone.`
-            : undefined
-        }
-        confirmLabel="Delete certificate"
-        onConfirm={remove}
-      />
+      <BulkBar count={sel.count} noun={sel.count === 1 ? 'certificate' : 'certificates'} onClear={sel.clear}>
+        <ArchiveButton onClick={() => archive.ask(sel.ids)} />
+      </BulkBar>
+      {archive.dialog}
     </div>
   )
 }

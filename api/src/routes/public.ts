@@ -33,7 +33,7 @@ export async function publicRoutes(app: FastifyInstance) {
       }),
       req.query,
     )
-    const where: Prisma.ProductWhereInput = { status: 'ACTIVE' }
+    const where: Prisma.ProductWhereInput = { status: 'ACTIVE', deletedAt: null }
     if (q.q) where.OR = [{ name: { contains: q.q, mode: 'insensitive' } }, { tagline: { contains: q.q, mode: 'insensitive' } }]
     if (q.category) where.category = { slug: q.category }
     if (q.featured) where.featured = true
@@ -49,10 +49,10 @@ export async function publicRoutes(app: FastifyInstance) {
 
   app.get('/api/products/:slug', async (req) => {
     const { slug } = req.params as { slug: string }
-    const p = await db.product.findFirst({ where: { slug, status: 'ACTIVE' }, include: productInclude })
+    const p = await db.product.findFirst({ where: { slug, status: 'ACTIVE', deletedAt: null }, include: productInclude })
     if (!p) throw notFound('Product not found')
     const related = await db.product.findMany({
-      where: { status: 'ACTIVE', id: { not: p.id } },
+      where: { status: 'ACTIVE', deletedAt: null, id: { not: p.id } },
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
       take: 8,
       include: productInclude,
@@ -65,7 +65,8 @@ export async function publicRoutes(app: FastifyInstance) {
     const { q } = parse(z.object({ q: z.string().max(80).optional() }), req.query)
     const coas = await db.coa.findMany({
       where: {
-        product: { status: 'ACTIVE' },
+        deletedAt: null,
+        product: { status: 'ACTIVE', deletedAt: null },
         ...(q
           ? {
               OR: [

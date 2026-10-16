@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client'
 export const productInclude = {
   category: true,
   variants: { orderBy: [{ sortOrder: 'asc' }, { priceCents: 'asc' }] },
-  coas: { orderBy: { testedAt: 'desc' } },
+  coas: { where: { deletedAt: null }, orderBy: { testedAt: 'desc' } },
 } satisfies Prisma.ProductInclude
 
 type ProductFull = Prisma.ProductGetPayload<{ include: typeof productInclude }>

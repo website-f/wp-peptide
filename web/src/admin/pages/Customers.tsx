@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api } from '@/lib/api'
 import { date, money, num, relative } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import {
   AffiliateStatusBadge,
   ErrorState,
@@ -21,6 +22,7 @@ import {
   TierBadge,
 } from '../components/kit'
 import { useLicensed } from '../lib/queries'
+import { ArchiveButton, BulkBar, SelectBox, useArchive, useSelection } from '../components/bulk'
 import type { CustomerRow, Paged, Tier } from '../lib/types'
 import { TIER_LABEL, useDebounced } from '../lib/utils'
 
@@ -94,6 +96,8 @@ export default function Customers() {
 
   const rows = query.data?.rows ?? []
   const filtered = Boolean(q || tier)
+  const sel = useSelection(rows.map((c) => c.id))
+  const archive = useArchive('customers', sel.clear)
 
   return (
     <div>
@@ -160,8 +164,9 @@ export default function Customers() {
           {/* Phone: stacked cards */}
           <ul className="divide-y md:hidden">
             {rows.map((c) => (
-              <li key={c.id}>
-                <Link to={`/admin/customers/${c.id}`} className="block px-4 py-3.5 transition-colors hover:bg-muted/40">
+              <li key={c.id} className={cn('flex items-start gap-3 pl-4', sel.has(c.id) && 'bg-gold/5')}>
+                <SelectBox className="pt-4" checked={sel.has(c.id)} onChange={() => sel.toggle(c.id)} label={`Select ${c.name}`} />
+                <Link to={`/admin/customers/${c.id}`} className="block min-w-0 flex-1 py-3.5 pr-4 transition-colors hover:bg-muted/40">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-medium">{c.name}</p>
@@ -193,7 +198,10 @@ export default function Customers() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="pl-4 text-xs font-medium text-muted-foreground">Customer</TableHead>
+                  <TableHead className="w-10 pl-4">
+                    <SelectBox checked={sel.all} indeterminate={sel.some} onChange={sel.toggleAll} label="Select all customers on this page" />
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground">Customer</TableHead>
                   {membership && <TableHead className="text-xs font-medium text-muted-foreground">Tier</TableHead>}
                   <TableHead className="text-right text-xs font-medium text-muted-foreground">Orders</TableHead>
                   <TableHead className="text-right text-xs font-medium text-muted-foreground">Spent</TableHead>
@@ -205,8 +213,11 @@ export default function Customers() {
               </TableHeader>
               <TableBody>
                 {rows.map((c) => (
-                  <TableRow key={c.id} className="cursor-pointer" onClick={() => navigate(`/admin/customers/${c.id}`)}>
-                    <TableCell className="max-w-72 pl-4">
+                  <TableRow key={c.id} className={cn('cursor-pointer', sel.has(c.id) && 'bg-gold/5')} onClick={() => navigate(`/admin/customers/${c.id}`)}>
+                    <TableCell className="w-10 pl-4">
+                      <SelectBox checked={sel.has(c.id)} onChange={() => sel.toggle(c.id)} label={`Select ${c.name}`} />
+                    </TableCell>
+                    <TableCell className="max-w-72">
                       <div className="flex min-w-0 items-center gap-2">
                         <Link
                           to={`/admin/customers/${c.id}`}
@@ -247,6 +258,10 @@ export default function Customers() {
           </div>
         </Panel>
       )}
+      <BulkBar count={sel.count} noun={sel.count === 1 ? 'customer' : 'customers'} onClear={sel.clear}>
+        <ArchiveButton onClick={() => archive.ask(sel.ids)} />
+      </BulkBar>
+      {archive.dialog}
     </div>
   )
 }

@@ -26,7 +26,7 @@ export async function adminOrderRoutes(app: FastifyInstance) {
       }),
       req.query,
     )
-    const where: Prisma.OrderWhereInput = {}
+    const where: Prisma.OrderWhereInput = { deletedAt: null }
     if (q.status === 'OPEN') where.status = { in: ['PAID', 'PROCESSING'] }
     else if (q.status) where.status = q.status
     if (q.kind) where.kind = q.kind
@@ -49,7 +49,7 @@ export async function adminOrderRoutes(app: FastifyInstance) {
         take,
         include: { _count: { select: { items: true } }, affiliate: { select: { code: true } } },
       }),
-      db.order.groupBy({ by: ['status'], _count: true }),
+      db.order.groupBy({ by: ['status'], where: { deletedAt: null }, _count: true }),
     ])
     return {
       total,

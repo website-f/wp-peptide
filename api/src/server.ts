@@ -13,6 +13,7 @@ import { expireUnpaidOrders } from './lib/orders.js'
 import { activeCreds, importLegacyEnvKeys } from './lib/gateway.js'
 import { reconcile } from './lib/toyyibpay.js'
 import { accountRoutes } from './routes/account.js'
+import { adminArchiveRoutes } from './routes/admin/archive.js'
 import { adminCatalogRoutes } from './routes/admin/catalog.js'
 import { adminOrderRoutes } from './routes/admin/orders.js'
 import { adminPaymentRoutes } from './routes/admin/payments.js'
@@ -65,6 +66,7 @@ await app.register(
     await admin.register(adminPeopleRoutes)
     await admin.register(adminStoreRoutes)
     await admin.register(adminPaymentRoutes)
+    await admin.register(adminArchiveRoutes)
   },
   { prefix: '/api/admin' },
 )
