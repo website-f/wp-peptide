@@ -72,11 +72,12 @@ services:
       ROUNDCUBEMAIL_DES_KEY: ${ROUNDCUBE_DES_KEY:?set ROUNDCUBE_DES_KEY in mail/.env}
       ROUNDCUBEMAIL_SKIN: elastic
       ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE: 25M
-      ROUNDCUBEMAIL_PLUGINS: archive,zipdownload,markasjunk,newmail_notifier,emoticons
+      ROUNDCUBEMAIL_PLUGINS: archive,zipdownload,markasjunk,newmail_notifier,emoticons,kyvo_identity
       MAIL_DOMAIN: ${MAIL_DOMAIN}
     volumes:
       - ./data/roundcube/db:/var/roundcube/db
       - ./roundcube/kyvo.inc.php:/var/roundcube/config/kyvo.inc.php:ro
+      - ./roundcube/plugins/kyvo_identity:/var/www/html/plugins/kyvo_identity:ro
       # tls-verify (production) or tls-insecure (local self-signed certificate only)
       - ./roundcube/tls-${MAIL_TLS_MODE:-verify}.inc.php:/var/roundcube/config/zz-tls.inc.php:ro
     depends_on: [mailserver]

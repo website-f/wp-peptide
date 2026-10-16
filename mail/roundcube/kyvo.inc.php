@@ -26,3 +26,6 @@ $config['mime_param_folding'] = 0;
 $config['enable_installer'] = false;
 $config['display_version'] = false;
 $config['support_url'] = '';
+
+// Sender name for new webmail users (plugins/kyvo_identity). Each user can change it under Settings > Identities.
+$config['kyvo_display_name'] = 'KYVO Labs';
