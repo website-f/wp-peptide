@@ -7,8 +7,10 @@ import { AboutBlock, CoaRail, CtaBand, FaqSection, Programs, TierStairs } from '
 import { ResearchDisclaimer } from '@/components/layout/SiteFooter'
 import { ProductCard, ProductCardSkeleton } from '@/components/product/ProductCard'
 import { useCoas, usePrograms, useProducts, useSettings } from '@/lib/queries'
+import { useSeo } from '@/lib/seo'
 
 export default function Home() {
+  useSeo({})
   const { data: settings } = useSettings()
   const programs = usePrograms()
   const all = useProducts()

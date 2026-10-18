@@ -19,6 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { money, moneyExact } from '@/lib/format'
 import { useMe, useSettings } from '@/lib/queries'
 import type { Settings } from '@/lib/types'
+import { useSeo } from '@/lib/seo'
 
 type Aff = Settings['affiliate']
 
@@ -29,6 +30,7 @@ function V({ children, w = 'w-10' }: { children: React.ReactNode | undefined; w?
 }
 
 export default function Partners() {
+  useSeo({ title: 'Partner program', description: 'Earn commission by sharing KYVO Labs with your audience. Apply online in a few minutes.' })
   const settings = useSettings()
   const me = useMe()
   const location = useLocation()

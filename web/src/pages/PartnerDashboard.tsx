@@ -11,8 +11,10 @@ import { date } from '@/lib/format'
 import { useSettings } from '@/lib/queries'
 import type { Me } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useSeo } from '@/lib/seo'
 
 export default function PartnerDashboard() {
+  useSeo({ title: 'Partner dashboard', noindex: true })
   return <RequireUser>{(me) => <Dashboard me={me} />}</RequireUser>
 }
 

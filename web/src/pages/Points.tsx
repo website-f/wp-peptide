@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button'
 import { money, num, pointsCents } from '@/lib/format'
 import { useFeatures, useMe, useSettings } from '@/lib/queries'
 import { TIER_LABEL, type Tier } from '@/lib/types'
+import { useSeo } from '@/lib/seo'
 
 export default function Points() {
+  useSeo({ title: 'Points', description: 'Earn points on every KYVO order and use them as a discount on the next one.' })
   const { data: s } = useSettings()
   const { data: me } = useMe()
   const features = useFeatures()

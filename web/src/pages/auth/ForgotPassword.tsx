@@ -7,8 +7,10 @@ import { Field, FormError, cleanApiMessage, isEmail } from '@/components/account
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api, errorMessage } from '@/lib/api'
+import { useSeo } from '@/lib/seo'
 
 export default function ForgotPassword() {
+  useSeo({ title: 'Forgot password', noindex: true })
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | undefined>()
   const send = useMutation({ mutationFn: () => api.post('/api/auth/forgot', { email: email.trim() }) })

@@ -19,8 +19,10 @@ import { useCartQuote, useMe, useSettings } from '@/lib/queries'
 import { getRefCode } from '@/lib/referral'
 import type { PlaceOrderResult, Quote } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useSeo } from '@/lib/seo'
 
 export default function Checkout() {
+  useSeo({ title: 'Checkout', noindex: true })
   const { items, couponCode, setCoupon, clear } = useCart()
   const { data: me } = useMe()
   const { data: settings } = useSettings()

@@ -1,5 +1,5 @@
 import { FileTextIcon } from '@phosphor-icons/react'
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { Link, NavLink, useParams } from 'react-router'
 import { buildPolicies, policyVars } from '@/components/account/policyContent'
 import { EmptyState } from '@/components/brand/bits'
@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { date } from '@/lib/format'
 import { useSettings } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { useSeo } from '@/lib/seo'
 
 export default function Policy() {
   const { slug } = useParams()
@@ -15,9 +16,7 @@ export default function Policy() {
   const policies = useMemo(() => buildPolicies(policyVars(settings.data)), [settings.data])
   const doc = policies.find((p) => p.slug === slug)
 
-  useEffect(() => {
-    if (doc) document.title = `${doc.title} | KYVO Labs`
-  }, [doc])
+  useSeo({ title: doc?.title ?? 'Policies', description: doc ? `${doc.title} for KYVO Labs: how orders, payments and deliveries work, and how to reach us.` : undefined })
 
   if (!doc)
     return (

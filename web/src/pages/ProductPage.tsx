@@ -15,6 +15,7 @@ import { useCart } from '@/lib/cart'
 import { date, money, num } from '@/lib/format'
 import { useMe, useProduct, useSettings } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { useSeo } from '@/lib/seo'
 
 export default function ProductPage() {
   const { slug } = useParams()
@@ -34,10 +35,34 @@ export default function ProductPage() {
       setVariantId((product.variants.find((v) => v.inStock) ?? product.variants[0])?.id ?? '')
       setQty(1)
       setShot(0)
-      document.title = `${product.name} | KYVO Labs`
     }
   }, [product])
 
+  useSeo(
+    product
+      ? {
+          title: product.name,
+          description: `${product.tagline ? `${product.tagline}. ` : ''}${product.name} research peptide with a certificate of analysis for its batch. For laboratory research use only.`.slice(0, 300),
+          image: product.image ? `${product.image}-900.webp` : undefined,
+          data: {
+            '@context': 'https://schema.org',
+            '@type': 'Product',
+            name: product.name,
+            description: product.tagline || undefined,
+            image: product.image ? `${window.location.origin}${product.image}-900.webp` : undefined,
+            brand: { '@type': 'Brand', name: 'KYVO Labs' },
+            offers: {
+              '@type': 'AggregateOffer',
+              priceCurrency: 'MYR',
+              lowPrice: (Math.min(...product.variants.map((x) => x.priceCents)) / 100).toFixed(2),
+              highPrice: (Math.max(...product.variants.map((x) => x.priceCents)) / 100).toFixed(2),
+              offerCount: product.variants.length,
+              availability: product.variants.some((x) => x.inStock) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+            },
+          },
+        }
+      : { title: 'Product' },
+  )
   const v = product?.variants.find((x) => x.id === variantId)
   // Quantity discounts follow Admin > Settings: on/off, ladder, and whether units count per compound or per order.
   const tiersOn = Boolean(settings?.tierPricing?.enabled && settings.tiers.length > 0)

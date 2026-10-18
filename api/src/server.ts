@@ -25,6 +25,7 @@ import { authRoutes } from './routes/auth.js'
 import { checkoutRoutes } from './routes/checkout.js'
 import { paymentRoutes } from './routes/payments.js'
 import { publicRoutes } from './routes/public.js'
+import { seoRoutes } from './routes/seo.js'
 
 const app = Fastify({
   logger: { level: env.isProd ? 'info' : 'warn' },
@@ -49,6 +50,7 @@ app.setErrorHandler((err, _req, reply) => sendError(reply, err))
 app.setNotFoundHandler((_req, reply) => reply.status(404).send({ error: 'Not found' }))
 
 await app.register(publicRoutes)
+await app.register(seoRoutes)
 await app.register(authRoutes)
 await app.register(checkoutRoutes)
 await app.register(paymentRoutes)

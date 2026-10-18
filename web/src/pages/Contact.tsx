@@ -10,10 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { api, errorMessage } from '@/lib/api'
 import { useMe, useSettings } from '@/lib/queries'
+import { useSeo } from '@/lib/seo'
 
 const TOPICS = ['Order', 'Certificate / COA', 'Bulk or invoicing', 'Partner program', 'Build a Box', 'Other']
 
 export default function Contact() {
+  useSeo({ title: 'Contact us', description: 'Questions about an order, a certificate or bulk pricing? Send KYVO Labs a message.' })
   const { data: s } = useSettings()
   const { data: me } = useMe()
   const [f, setF] = useState({ name: me?.user?.name ?? '', email: me?.user?.email ?? '', topic: 'Order', orderRef: '', message: '' })

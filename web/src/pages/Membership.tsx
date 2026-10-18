@@ -13,11 +13,13 @@ import { date, money } from '@/lib/format'
 import { useFeatures, useMe, useSettings } from '@/lib/queries'
 import { TIER_LABEL, type PlaceOrderResult, type Tier } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useSeo } from '@/lib/seo'
 
 type Paid = Exclude<Tier, 'MEMBER'>
 const ORDER: Tier[] = ['MEMBER', 'INSIDER', 'VIP', 'FOUNDER']
 
 export default function Membership() {
+  useSeo({ title: 'Membership' })
   const features = useFeatures()
   // While the program is switched off in Admin > Settings, the page is not reachable.
   if (features.loaded && !features.membership) return <Navigate to="/points" replace />

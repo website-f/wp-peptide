@@ -25,6 +25,7 @@ import { date, moneyExact, num } from '@/lib/format'
 import { useMe, useSettings } from '@/lib/queries'
 import { STATUS_LABEL, type Address, type PublicOrder } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useSeo } from '@/lib/seo'
 
 type VerifyResult = { result: 'paid' | 'pending' | 'failed' | 'unchanged'; status: PublicOrder['status']; note: string | null }
 
@@ -37,6 +38,7 @@ const STEPS = [
 const RANK: Record<string, number> = { PENDING_PAYMENT: -1, PAID: 0, PROCESSING: 1, SHIPPED: 2, DELIVERED: 3 }
 
 export default function OrderPage() {
+  useSeo({ title: 'Your order', noindex: true })
   const { number } = useParams()
   const [params, setParams] = useSearchParams()
   const key = params.get('key') ?? undefined

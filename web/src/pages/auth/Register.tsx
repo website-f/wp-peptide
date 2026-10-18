@@ -10,10 +10,12 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { api, errorMessage } from '@/lib/api'
 import { useMe, useSettings } from '@/lib/queries'
+import { useSeo } from '@/lib/seo'
 
 type Errors = Partial<Record<'name' | 'email' | 'phone' | 'password' | 'confirmAge', string>>
 
 export default function Register() {
+  useSeo({ title: 'Create an account', noindex: true })
   const me = useMe()
   const settings = useSettings()
   const navigate = useNavigate()

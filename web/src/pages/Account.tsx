@@ -10,6 +10,7 @@ import { date, moneyExact, num, pointsCents } from '@/lib/format'
 import { useFeatures, useSettings } from '@/lib/queries'
 import { TIER_LABEL, type Me } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useSeo } from '@/lib/seo'
 
 type TabKey = 'orders' | 'points' | 'box' | 'profile'
 
@@ -21,6 +22,7 @@ const TABS: { key: TabKey; label: string; to: string; icon: Icon }[] = [
 ]
 
 export default function Account() {
+  useSeo({ title: 'Your account', noindex: true })
   const { tab } = useParams()
   const key = (tab ?? 'orders') as TabKey
   if (!TABS.some((t) => t.key === key)) return <Navigate to="/account" replace />

@@ -19,10 +19,12 @@ import { useMe, usePrograms, useProducts, useSettings } from '@/lib/queries'
 import { getRefCode } from '@/lib/referral'
 import type { Ladder, PlaceOrderResult, ProductCard, Quote } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useSeo } from '@/lib/seo'
 
 const pctFor = (qty: number, ladder: Ladder[]) => ladder.reduce((a, t) => (qty >= t.min ? t.pct : a), 0)
 
 export default function Bulk() {
+  useSeo({ title: 'Bulk orders', description: 'Wholesale pricing for labs ordering research peptides in volume, with a certificate of analysis for every batch.' })
   const programs = usePrograms()
   // Switched off in Admin > Settings: the page is not reachable.
   if (programs.loaded && !programs.bulk) return <Navigate to="/shop" replace />

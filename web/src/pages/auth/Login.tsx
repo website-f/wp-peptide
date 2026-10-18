@@ -10,10 +10,12 @@ import { Input } from '@/components/ui/input'
 import { api, errorMessage } from '@/lib/api'
 import { useMe } from '@/lib/queries'
 import type { Me } from '@/lib/types'
+import { useSeo } from '@/lib/seo'
 
 type PublicUser = NonNullable<Me['user']>
 
 export default function Login() {
+  useSeo({ title: 'Sign in', noindex: true })
   const me = useMe()
   const navigate = useNavigate()
   const location = useLocation()

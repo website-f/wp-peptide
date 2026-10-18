@@ -3,10 +3,12 @@ import { PageHeader } from '@/components/brand/bits'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { faqs, type FaqItem } from '@/lib/content'
 import { useSettings } from '@/lib/queries'
+import { useSeo } from '@/lib/seo'
 
 const GROUPS: FaqItem['group'][] = ['Ordering', 'Quality', 'Shipping', 'Programs']
 
 export default function Faq() {
+  useSeo({ title: 'FAQ', description: 'Answers about ordering, payment, shipping, certificates of analysis and research use.' })
   const { data: s } = useSettings()
   const list = faqs(s)
   return (

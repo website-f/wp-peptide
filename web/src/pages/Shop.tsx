@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { tierSentence } from '@/lib/content'
 import { useCategories, useProducts, useSettings } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { useSeo } from '@/lib/seo'
 
 const SORTS = [
   { v: 'featured', l: 'Featured' },
@@ -20,6 +21,7 @@ const SORTS = [
 ]
 
 export default function Shop() {
+  useSeo({ title: 'Shop research peptides', description: 'Browse KYVO research peptides. Every product has a certificate of analysis for its batch, with HPLC purity and full lab report. For laboratory research use only.' })
   const [params, setParams] = useSearchParams()
   const category = params.get('category') ?? ''
   const sort = params.get('sort') ?? 'featured'

@@ -8,8 +8,10 @@ import { PageSkeleton } from '@/components/account/bits'
 import { Button } from '@/components/ui/button'
 import { api, errorMessage } from '@/lib/api'
 import type { Me } from '@/lib/types'
+import { useSeo } from '@/lib/seo'
 
 export default function ResetPassword() {
+  useSeo({ title: 'Choose a new password', noindex: true })
   const [params] = useSearchParams()
   const token = params.get('token') ?? ''
   const navigate = useNavigate()

@@ -18,6 +18,7 @@ import { useMe, usePrograms, useProducts, useSettings } from '@/lib/queries'
 import { getRefCode } from '@/lib/referral'
 import type { PlaceOrderResult, ProductCard, Quote } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useSeo } from '@/lib/seo'
 
 interface Pick {
   variantId: string
@@ -32,6 +33,7 @@ interface Pick {
 const PICKS_KEY = 'kyvo-box-picks'
 
 export default function BuildBox() {
+  useSeo({ title: 'Build a Box', description: 'Choose your research peptides for a monthly box at a lower price, shipped on schedule.' })
   const programs = usePrograms()
   // Switched off in Admin > Settings: the page is not reachable.
   if (programs.loaded && !programs.box) return <Navigate to="/shop" replace />

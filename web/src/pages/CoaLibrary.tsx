@@ -12,6 +12,7 @@ import { groupByProduct, lotWord, viewerOrder } from '@/lib/coa'
 import { date, plural } from '@/lib/format'
 import { useCoas } from '@/lib/queries'
 import type { Coa } from '@/lib/types'
+import { useSeo } from '@/lib/seo'
 
 const GUIDE = [
   { k: 'Purity (HPLC)', d: 'HPLC separates the sample and reports the share that is the target compound. Every batch we list is above 99%.' },
@@ -21,6 +22,7 @@ const GUIDE = [
 ]
 
 export default function CoaLibrary() {
+  useSeo({ title: 'COA library', description: 'Read the certificate of analysis for every KYVO batch online: HPLC purity, identity tests and the full lab report, free and view-only.' })
   const [params, setParams] = useSearchParams()
   const [q, setQ] = useState(params.get('q') ?? '')
   const [debounced, setDebounced] = useState(q)

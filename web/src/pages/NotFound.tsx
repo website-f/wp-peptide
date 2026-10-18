@@ -1,7 +1,9 @@
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
+import { useSeo } from '@/lib/seo'
 
 export default function NotFound() {
+  useSeo({ title: 'Page not found', noindex: true })
   return (
     <section className="container-x flex min-h-[60dvh] flex-col justify-center py-20">
       <p className="font-mono text-sm text-gold-ink">404</p>

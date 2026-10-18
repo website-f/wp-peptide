@@ -4,6 +4,7 @@ import { WideImage } from '@/components/brand/ProductImage'
 import { PageHeader } from '@/components/brand/bits'
 import { CtaBand } from '@/components/home/Sections'
 import { ResearchDisclaimer } from '@/components/layout/SiteFooter'
+import { useSeo } from '@/lib/seo'
 
 const STEPS = [
   { icon: FlaskIcon, k: 'Synthesis', d: 'Peptides are made by solid-phase synthesis with partners we audit, then lyophilised and sealed under inert gas.' },
@@ -13,6 +14,7 @@ const STEPS = [
 ]
 
 export default function About() {
+  useSeo({ title: 'About us', description: 'Who KYVO Labs is, and how every batch is tested and documented with a certificate of analysis.' })
   return (
     <>
       <PageHeader title="About KYVO Labs" intro="Laboratory-grade peptides for researchers who need the material and the paperwork to hold up." />
