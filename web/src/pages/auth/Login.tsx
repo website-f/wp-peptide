@@ -1,10 +1,10 @@
 import { CircleNotchIcon, HandshakeIcon } from '@phosphor-icons/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { AuthShell } from '@/components/account/AuthShell'
 import { Field, FormError, PasswordInput, cleanApiMessage, isEmail } from '@/components/account/Field'
-import { PageSkeleton, safeNext } from '@/components/account/bits'
+import { GoTo, PageSkeleton, leaveTo, safeNext } from '@/components/account/bits'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api, errorMessage } from '@/lib/api'
@@ -37,12 +37,12 @@ export default function Login() {
       qc.removeQueries({ queryKey: ['account'] })
       qc.removeQueries({ queryKey: ['affiliate'] })
       await qc.invalidateQueries({ queryKey: ['me'] })
-      navigate(destination(user), { replace: true })
+      leaveTo(navigate, destination(user))
     },
   })
 
   if (me.isPending) return <PageSkeleton />
-  if (me.data?.user && !login.isPending && !login.isSuccess) return <Navigate to={destination(me.data.user)} replace />
+  if (me.data?.user && !login.isPending && !login.isSuccess) return <GoTo to={destination(me.data.user)} />
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -54,12 +54,13 @@ export default function Login() {
     login.mutate()
   }
 
-  const nextQs = next ? `?next=${encodeURIComponent(next)}` : ''
+  const app = params.get('app')?.slice(0, 40) ?? null
+  const nextQs = next ? `?next=${encodeURIComponent(next)}${app ? `&app=${encodeURIComponent(app)}` : ''}` : ''
 
   return (
     <AuthShell
       title="Sign in"
-      intro="Track orders, spend points and manage your box."
+      intro={app ? `Use your KYVO account to continue to ${app}.` : 'Track orders, spend points and manage your box.'}
       footer={
         <span className="inline-flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1">
           <HandshakeIcon className="size-4 text-gold-ink" aria-hidden />

@@ -102,12 +102,40 @@ model User {
   sessionVersion     Int             @default(0)
   orders             Order[]
   passwordResets     PasswordReset[]
+  appGrants          AppGrant[]
+  appCodes           AppCode[]
   affiliate          Affiliate?
   pointsTxns         PointsTxn[]
   subscriptions      Subscription[]
   /// Soft delete: set when archived in the admin (restorable from Admin > Archive).
   deletedAt          DateTime?
   deletedBy          String?
+}
+
+/// A connected first-party app (e.g. the dose tracker) the user signed in to with their KYVO account.
+model AppGrant {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId   String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@unique([userId, clientId])
+}
+
+/// One-time "Sign in with KYVO" authorization codes (OAuth 2 code flow with PKCE). Stored hashed, 2 minutes.
+model AppCode {
+  id            String    @id @default(cuid())
+  codeHash      String    @unique
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId      String
+  redirectUri   String
+  codeChallenge String
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
 }
 
 /// "Forgot password" links. Only a SHA-256 of the token is stored; each link works once, for 1 hour.

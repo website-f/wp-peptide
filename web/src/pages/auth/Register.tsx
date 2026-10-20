@@ -1,10 +1,10 @@
 import { CircleNotchIcon } from '@phosphor-icons/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { AuthShell } from '@/components/account/AuthShell'
 import { Field, FieldError, FormError, PasswordInput, apiFieldErrors, cleanApiMessage, isEmail } from '@/components/account/Field'
-import { PageSkeleton, safeNext } from '@/components/account/bits'
+import { GoTo, PageSkeleton, leaveTo, safeNext } from '@/components/account/bits'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -40,13 +40,13 @@ export default function Register() {
       qc.removeQueries({ queryKey: ['account'] })
       qc.removeQueries({ queryKey: ['affiliate'] })
       await qc.invalidateQueries({ queryKey: ['me'] })
-      navigate(next ?? '/account', { replace: true })
+      leaveTo(navigate, next ?? '/account')
     },
     onError: (e) => setErrors(apiFieldErrors(e) as Errors),
   })
 
   if (me.isPending) return <PageSkeleton />
-  if (me.data?.user && !register.isPending && !register.isSuccess) return <Navigate to={next ?? '/account'} replace />
+  if (me.data?.user && !register.isPending && !register.isSuccess) return <GoTo to={next ?? '/account'} />
 
   const submit = (e: FormEvent) => {
     e.preventDefault()

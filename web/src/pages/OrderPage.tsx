@@ -1,5 +1,7 @@
 import {
   ArrowClockwiseIcon,
+  ArrowUpRightIcon,
+  CalendarCheckIcon,
   CheckCircleIcon,
   ClockIcon,
   CopyIcon,
@@ -299,6 +301,23 @@ export default function OrderPage() {
         </section>
 
         <div className="grid content-start gap-6">
+          {settings?.trackerUrl && !pending && !closed && o.kind !== 'MEMBERSHIP' && (
+            <a
+              href={settings.trackerUrl}
+              target="_blank"
+              rel="noopener"
+              className="group flex items-center gap-4 rounded-xl border border-gold/30 bg-gold/5 p-5 transition-colors hover:border-gold/50"
+            >
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-gold/15 text-gold-ink">
+                <CalendarCheckIcon className="size-6" weight="fill" aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-display text-lg font-semibold tracking-wide uppercase">Track it in KYVO Tracker</span>
+                <span className="text-sm text-muted-foreground">Sign in with this account and these vials are already in your stash, with reminders and a log.</span>
+              </span>
+              <ArrowUpRightIcon className="size-5 shrink-0 text-gold-ink transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden />
+            </a>
+          )}
           {hasAddress && (
             <section className="rounded-xl border bg-card p-5">
               <h2 className="font-display text-xl font-semibold uppercase">Ship to</h2>

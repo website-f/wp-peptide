@@ -1,4 +1,4 @@
-import { ArrowUpRightIcon, CoinsIcon, CrownSimpleIcon, CubeIcon, GaugeIcon, HandshakeIcon, PackageIcon, UserIcon } from '@phosphor-icons/react'
+import { ArrowUpRightIcon, CalendarCheckIcon, CoinsIcon, CrownSimpleIcon, CubeIcon, GaugeIcon, HandshakeIcon, PackageIcon, UserIcon } from '@phosphor-icons/react'
 import type { Icon } from '@phosphor-icons/react'
 import { Link, NavLink, Navigate, useParams } from 'react-router'
 import { AccountBox } from '@/components/account/AccountBox'
@@ -56,6 +56,18 @@ function AccountView({ me, tab }: { me: Me & { user: NonNullable<Me['user']> }; 
               <QuickLink to="/partners/dashboard" icon={HandshakeIcon}>
                 Partner dashboard
               </QuickLink>
+            )}
+            {settings?.trackerUrl && (
+              <a
+                href={settings.trackerUrl}
+                target="_blank"
+                rel="noopener"
+                className="inline-flex h-11 items-center gap-2 rounded-md border px-3.5 text-sm font-medium transition-colors hover:border-gold/40 hover:text-gold-ink"
+              >
+                <CalendarCheckIcon className="size-4 text-gold-ink" aria-hidden />
+                Dose tracker
+                <ArrowUpRightIcon className="size-3.5 text-muted-foreground" aria-hidden />
+              </a>
             )}
           </div>
         </div>

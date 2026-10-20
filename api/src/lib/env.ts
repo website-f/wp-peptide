@@ -29,6 +29,18 @@ export const env = {
     secretKey: process.env.TOYYIBPAY_SECRET_KEY ?? '',
     categoryCode: process.env.TOYYIBPAY_CATEGORY_CODE ?? '',
   },
+  // First-party apps using "Sign in with KYVO" (the dose tracker). Blank client id = not connected.
+  apps: [
+    {
+      name: process.env.TRACKER_NAME ?? 'KYVO Tracker',
+      clientId: process.env.TRACKER_CLIENT_ID ?? '',
+      clientSecret: process.env.TRACKER_CLIENT_SECRET ?? '',
+      redirectUris: (process.env.TRACKER_REDIRECT_URIS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+      appUrl: trimSlash(process.env.TRACKER_APP_URL ?? ''),
+      webhookUrl: process.env.TRACKER_WEBHOOK_URL ?? '',
+      webhookSecret: process.env.TRACKER_WEBHOOK_SECRET ?? '',
+    },
+  ].filter((a) => a.clientId && a.clientSecret),
   // Licensed add-ons. Off unless explicitly enabled for this installation; the
   // store admin cannot see or switch these on from the panel.
   enableMembership: process.env.ENABLE_MEMBERSHIP === 'true',

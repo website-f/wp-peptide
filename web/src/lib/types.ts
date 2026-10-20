@@ -9,6 +9,8 @@ export interface Ladder {
 
 export interface Settings {
   storeName: string
+  /** The KYVO dose tracker app, when it is connected. */
+  trackerUrl?: string | null
   /** Only present when the membership add-on is licensed. */
   features?: { membership: boolean }
   supportEmail: string

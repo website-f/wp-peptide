@@ -47,6 +47,14 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       # Local self-signed mail server only. Leave unset in production (TLS is verified).
       SMTP_TLS_REJECT_UNAUTHORIZED: ${SMTP_TLS_REJECT_UNAUTHORIZED:-true}
+      # Dose tracker ("Sign in with KYVO" + purchases). Leave TRACKER_CLIENT_ID empty to disconnect.
+      TRACKER_NAME: ${TRACKER_NAME:-KYVO Tracker}
+      TRACKER_CLIENT_ID: ${TRACKER_CLIENT_ID:-}
+      TRACKER_CLIENT_SECRET: ${TRACKER_CLIENT_SECRET:-}
+      TRACKER_REDIRECT_URIS: ${TRACKER_REDIRECT_URIS:-}
+      TRACKER_APP_URL: ${TRACKER_APP_URL:-}
+      TRACKER_WEBHOOK_URL: ${TRACKER_WEBHOOK_URL:-}
+      TRACKER_WEBHOOK_SECRET: ${TRACKER_WEBHOOK_SECRET:-}
       # Licensed add-on: membership tiers stay hidden everywhere unless this is true.
       ENABLE_MEMBERSHIP: ${ENABLE_MEMBERSHIP:-false}
       SEED_DEMO: ${SEED_DEMO:-0}

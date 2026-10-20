@@ -283,6 +283,7 @@ export const licensed = () => ({ membership: env.enableMembership })
 
 /** gatewayReady: online payment is hidden from shoppers while ToyyibPay is not set up. */
 export function publicSettings(s: StoreSettings, gatewayReady: boolean) {
+  const tracker = env.apps[0]
   // Unlicensed programs are not described to the public at all.
   const { membership, features, announcement: _legacy, banner, onlinePayment: _gateway, notifications: _staff, ...rest } = s
   // Shoppers only receive messages that are switched on and inside their schedule.
@@ -299,6 +300,7 @@ export function publicSettings(s: StoreSettings, gatewayReady: boolean) {
     banner: { style: banner.style, rotateSeconds: banner.rotateSeconds, dismissible: banner.dismissible, messages: live },
     points,
     ...(env.enableMembership ? { membership, features } : {}),
+    trackerUrl: tracker?.appUrl || null,
     paymentMethods: s.paymentMethods.filter((m) => m.enabled && (m.type !== 'gateway' || gatewayReady)).map(({ id, label, type, instructions }) => ({ id, label, type, instructions: type === 'gateway' ? instructions : null })),
   }
 }

@@ -1,6 +1,6 @@
 import { ArrowClockwiseIcon, CheckIcon, CopyIcon, WarningOctagonIcon } from '@phosphor-icons/react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Navigate, useLocation } from 'react-router'
+import { Navigate, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -149,3 +149,18 @@ export function PageSkeleton() {
 }
 
 export const firstName = (name: string) => name.trim().split(/\s+/)[0] || name
+
+/**
+ * Where to go after signing in. "Sign in with KYVO" for connected apps returns to /api/oauth/...,
+ * which is a server route, so it needs a full page load rather than an in-app navigation.
+ */
+export function leaveTo(navigate: (to: string, o?: { replace?: boolean }) => void, to: string) {
+  if (to.startsWith('/api/')) window.location.replace(to)
+  else navigate(to, { replace: true })
+}
+
+export function GoTo({ to }: { to: string }) {
+  const navigate = useNavigate()
+  useEffect(() => leaveTo(navigate, to), [navigate, to])
+  return null
+}

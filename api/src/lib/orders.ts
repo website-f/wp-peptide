@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import type { Order, OrderKind, OrderStatus, Prisma, User } from '@prisma/client'
 import { db, nextOrderNumber } from './db.js'
+import { notifyOrderPaid } from './apps.js'
 import { closeOpenBills } from './gateway.js'
 import { mailOrderEvent, mailStaffOrderPaid } from './mailer.js'
 import { badRequest, notFound } from './http.js'
@@ -347,7 +348,11 @@ export async function setOrderStatus(
   })
   // Customer emails go out only after the transaction has committed.
   if (mail && actor !== 'seed') mailOrderEvent(orderId, mail)
-  if (mail === 'paid' && actor !== 'seed') mailStaffOrderPaid(orderId)
+  if (mail === 'paid' && actor !== 'seed') {
+    mailStaffOrderPaid(orderId)
+    // Connected apps (the dose tracker) add the purchased vials straight away.
+    notifyOrderPaid(orderId)
+  }
   // Once an order stops waiting for payment, its other ToyyibPay links must stop taking money.
   if (next !== 'PENDING_PAYMENT' && result.billCode && actor !== 'seed') {
     void closeOpenBills(orderId, (m) => console.warn(m)).catch((e) => console.warn('closeOpenBills failed', e))
