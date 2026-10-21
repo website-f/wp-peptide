@@ -18,6 +18,7 @@ const Points = p(() => import('@/pages/Points'))
 const Contact = p(() => import('@/pages/Contact'))
 const About = p(() => import('@/pages/About'))
 const Faq = p(() => import('@/pages/Faq'))
+const BmiCalculator = p(() => import('@/pages/BmiCalculator'))
 const NotFound = p(() => import('@/pages/NotFound'))
 
 // Customer + partner
@@ -66,6 +67,7 @@ const router = createBrowserRouter([
       { path: '/contact', element: <Contact /> },
       { path: '/about', element: <About /> },
       { path: '/faq', element: <Faq /> },
+      { path: '/bmi-calculator', element: <BmiCalculator /> },
       { path: '/partners', element: <Partners /> },
       { path: '/partners/dashboard', element: <PartnerDashboard /> },
       { path: '/login', element: <Login /> },

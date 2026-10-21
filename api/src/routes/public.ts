@@ -47,6 +47,28 @@ export async function publicRoutes(app: FastifyInstance) {
     return products
   })
 
+  // BMI calculator: active products whose admin-set BMI range contains this BMI. A product with only one
+  // bound is open-ended on the other side; products with no range are never suggested.
+  app.get('/api/bmi/suggestions', async (req) => {
+    const { bmi } = parse(z.object({ bmi: z.coerce.number().min(10).max(80) }), req.query)
+    const value = Math.round(bmi * 10) / 10
+    const rows = await db.product.findMany({
+      where: {
+        status: 'ACTIVE',
+        deletedAt: null,
+        OR: [{ bmiMin: { not: null } }, { bmiMax: { not: null } }],
+        AND: [{ OR: [{ bmiMin: null }, { bmiMin: { lte: value } }] }, { OR: [{ bmiMax: null }, { bmiMax: { gte: value } }] }],
+      },
+      orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
+      include: productInclude,
+    })
+    const low = (await getSettings()).inventory.lowStockThreshold
+    return {
+      bmi: value,
+      products: rows.map((p) => ({ ...productCard(p, low), bmiMin: p.bmiMin !== null ? Number(p.bmiMin) : null, bmiMax: p.bmiMax !== null ? Number(p.bmiMax) : null })),
+    }
+  })
+
   app.get('/api/products/:slug', async (req) => {
     const { slug } = req.params as { slug: string }
     const p = await db.product.findFirst({ where: { slug, status: 'ACTIVE', deletedAt: null }, include: productInclude })

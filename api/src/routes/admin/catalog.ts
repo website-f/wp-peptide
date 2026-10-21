@@ -38,6 +38,8 @@ const productSchema = z.object({
   molecularWeight: z.string().max(60).nullable().optional(),
   sequence: z.string().max(500).nullable().optional(),
   storage: z.string().max(300).nullable().optional(),
+  bmiMin: z.number().min(10).max(80).nullable().optional(),
+  bmiMax: z.number().min(10).max(80).nullable().optional(),
   sortOrder: z.number().int().default(0),
   variants: z.array(variantSchema).min(1, 'Add at least one size'),
 })
@@ -94,7 +96,9 @@ export async function adminCatalogRoutes(app: FastifyInstance) {
     const body = parse(productSchema, raw)
     const skus = body.variants.map((v) => v.sku.toUpperCase())
     if (new Set(skus).size !== skus.length) throw badRequest('Each size needs a unique SKU')
-    const { variants, purity, ...data } = body
+    if (body.bmiMin != null && body.bmiMax != null && body.bmiMin > body.bmiMax) throw badRequest('The BMI "from" value must be lower than the "to" value')
+    const { variants, purity, bmiMin, bmiMax, ...rest } = body
+    const data = { ...rest, bmiMin: bmiMin ?? null, bmiMax: bmiMax ?? null }
     return db.$transaction(async (tx) => {
       const product = id
         ? await tx.product.update({ where: { id }, data: { ...data, purity: purity ?? null } })

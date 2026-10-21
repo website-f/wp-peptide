@@ -48,6 +48,7 @@ export async function seoRoutes(app: FastifyInstance) {
       { path: '/points', priority: '0.4' },
       { path: '/about', priority: '0.5' },
       { path: '/faq', priority: '0.5' },
+      { path: '/bmi-calculator', priority: '0.6' },
       { path: '/contact', priority: '0.4' },
       ...POLICIES.map((p) => ({ path: `/policies/${p}`, priority: '0.2' })),
       ...products.map((p) => ({ path: `/shop/${p.slug}`, priority: '0.8', lastmod: day(p.updatedAt) })),

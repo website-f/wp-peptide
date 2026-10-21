@@ -14,6 +14,7 @@ export const NAV = [
   { to: '/build-a-box', label: 'Build a Box' },
   { to: '/bulk', label: 'Bulk Orders' },
   { to: '/coa-library', label: 'COA Library' },
+  { to: '/bmi-calculator', label: 'BMI Calculator' },
   { to: '/membership', label: 'Membership' },
   { to: '/partners', label: 'Partner Program' },
   { to: '/contact', label: 'Contact' },
@@ -53,7 +54,7 @@ export function SiteHeader() {
                 cn(
                   'rounded-md px-2.5 py-2 font-display text-[15px] font-medium tracking-[0.04em] whitespace-nowrap text-muted-foreground uppercase transition-colors hover:text-foreground xl:px-3',
                   isActive && 'text-gold-ink',
-                  n.to === '/contact' && 'hidden xl:block',
+                  (n.to === '/contact' || n.to === '/bmi-calculator') && 'hidden xl:block',
                 )
               }
             >

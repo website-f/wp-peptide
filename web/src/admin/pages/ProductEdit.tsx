@@ -77,6 +77,8 @@ type Draft = {
   molecularWeight: string
   sequence: string
   storage: string
+  bmiMin: string
+  bmiMax: string
   variants: VariantDraft[]
 }
 
@@ -133,6 +135,8 @@ function emptyDraft(): Draft {
     molecularWeight: '',
     sequence: '',
     storage: '',
+    bmiMin: '',
+    bmiMax: '',
     variants: [{ ...emptyVariant(''), key: 'new-initial' }],
   }
 }
@@ -157,6 +161,8 @@ function fromProduct(p: AdminProduct): Draft {
     molecularWeight: p.molecularWeight ?? '',
     sequence: p.sequence ?? '',
     storage: p.storage ?? '',
+    bmiMin: p.bmiMin === null || p.bmiMin === undefined ? '' : String(p.bmiMin),
+    bmiMax: p.bmiMax === null || p.bmiMax === undefined ? '' : String(p.bmiMax),
     variants: [...p.variants]
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((v) => ({
@@ -191,6 +197,12 @@ function validate(d: Draft): Errors {
     if (!Number.isFinite(n) || n < 0 || n > 100) e.purity = 'Enter a number between 0 and 100'
   }
   if (!/^-?\d+$/.test(d.sortOrder.trim() || '0')) e.sortOrder = 'Use a whole number'
+  const bmi = (s: string) => (s.trim() === '' ? null : Number(s))
+  const lo = bmi(d.bmiMin)
+  const hi = bmi(d.bmiMax)
+  if (lo !== null && (!Number.isFinite(lo) || lo < 10 || lo > 80)) e.bmiMin = 'Enter a BMI between 10 and 80'
+  if (hi !== null && (!Number.isFinite(hi) || hi < 10 || hi > 80)) e.bmiMax = 'Enter a BMI between 10 and 80'
+  if (!e.bmiMin && !e.bmiMax && lo !== null && hi !== null && lo > hi) e.bmiMax = 'Must be higher than the "from" value'
   if (d.variants.length === 0) e.variants = 'Add at least one size'
   const seen = new Map<string, string>()
   for (const v of d.variants) {
@@ -227,6 +239,8 @@ function toPayload(d: Draft) {
     molecularWeight: orNull(d.molecularWeight),
     sequence: orNull(d.sequence),
     storage: orNull(d.storage),
+    bmiMin: d.bmiMin.trim() === '' ? null : Math.round(Number(d.bmiMin) * 10) / 10,
+    bmiMax: d.bmiMax.trim() === '' ? null : Math.round(Number(d.bmiMax) * 10) / 10,
     sortOrder: parseInt(d.sortOrder, 10) || 0,
     variants: d.variants.map((v, i) => ({
       id: v.id,
@@ -681,6 +695,50 @@ function Editor({ product }: { product?: AdminProduct }) {
                   />
                 </Field>
               </div>
+            </Panel>
+
+            <Panel
+              title="BMI calculator"
+              description="Suggest this product on the BMI calculator page when a shopper's BMI falls in this range. Leave both empty to never suggest it; fill one side for an open range (e.g. from 30 and up)."
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="From BMI" htmlFor="p-bmi-min" optional error={errors.bmiMin} hint="Lowest BMI, inclusive.">
+                  <NumberInput
+                    id="p-bmi-min"
+                    value={draft.bmiMin}
+                    onChange={(v) => {
+                      patch({ bmiMin: v })
+                      clearError('bmiMin')
+                      clearError('bmiMax')
+                    }}
+                    step="0.1"
+                    min={10}
+                    max={80}
+                    placeholder="25.0"
+                    aria-invalid={!!errors.bmiMin}
+                  />
+                </Field>
+                <Field label="To BMI" htmlFor="p-bmi-max" optional error={errors.bmiMax} hint="Highest BMI, inclusive.">
+                  <NumberInput
+                    id="p-bmi-max"
+                    value={draft.bmiMax}
+                    onChange={(v) => {
+                      patch({ bmiMax: v })
+                      clearError('bmiMax')
+                    }}
+                    step="0.1"
+                    min={10}
+                    max={80}
+                    placeholder="40.0"
+                    aria-invalid={!!errors.bmiMax}
+                  />
+                </Field>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                {draft.bmiMin.trim() === '' && draft.bmiMax.trim() === ''
+                  ? 'Not shown on the BMI calculator.'
+                  : `Suggested for BMI ${draft.bmiMin.trim() || 'any'}${draft.bmiMax.trim() ? ` to ${draft.bmiMax.trim()}` : ' and above'}${draft.bmiMin.trim() === '' && draft.bmiMax.trim() ? ' (and below)' : ''}.`}
+              </p>
             </Panel>
           </div>
 

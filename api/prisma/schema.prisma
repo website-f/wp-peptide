@@ -180,6 +180,9 @@ model Product {
   molecularWeight  String?
   sequence         String?
   storage          String?
+  /// BMI calculator: suggested when a shopper's BMI falls inside this range. Both empty = never suggested.
+  bmiMin           Decimal?      @db.Decimal(4, 1)
+  bmiMax           Decimal?      @db.Decimal(4, 1)
   sortOrder        Int           @default(0)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt

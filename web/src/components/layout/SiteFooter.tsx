@@ -15,6 +15,7 @@ const QUICK = [
   { to: '/points', label: 'KYVO Points' },
   { to: '/about', label: 'About us' },
   { to: '/faq', label: 'FAQ' },
+  { to: '/bmi-calculator', label: 'BMI calculator' },
   { to: '/login?next=/partners/dashboard', label: 'Partner login' },
   { to: '/partners#apply', label: 'Partner signup' },
 ]

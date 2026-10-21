@@ -81,6 +81,8 @@ export function productAdmin(p: ProductFull & { _count?: { orderItems: number } 
     sortOrder: p.sortOrder,
     categoryId: p.categoryId,
     purity: p.purity !== null ? Number(p.purity) : null,
+    bmiMin: p.bmiMin !== null ? Number(p.bmiMin) : null,
+    bmiMax: p.bmiMax !== null ? Number(p.bmiMax) : null,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
     variants: p.variants.map((v) => ({

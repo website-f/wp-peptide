@@ -220,6 +220,8 @@ export interface AdminProduct {
   molecularWeight: string | null
   sequence: string | null
   storage: string | null
+  bmiMin: number | null
+  bmiMax: number | null
   coas: CoaDto[]
   status: ProductStatus
   sortOrder: number
