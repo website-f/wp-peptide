@@ -204,6 +204,8 @@ model Variant {
   stock      Int         @default(0)
   active     Boolean     @default(true)
   sortOrder  Int         @default(0)
+  /// Set when an admin removes a size that has orders: kept for order history, hidden everywhere else.
+  retiredAt  DateTime?
   orderItems OrderItem[]
 }
 

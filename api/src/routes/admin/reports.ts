@@ -65,7 +65,7 @@ export async function reportRoutes(app: FastifyInstance) {
           select: { id: true, number: true, name: true, email: true, totalCents: true, status: true, kind: true, createdAt: true },
         }),
         db.variant.findMany({
-          where: { active: true, stock: { lte: lowAt }, product: { status: 'ACTIVE', deletedAt: null } },
+          where: { active: true, retiredAt: null, stock: { lte: lowAt }, product: { status: 'ACTIVE', deletedAt: null } },
           orderBy: { stock: 'asc' },
           take: 8,
           include: { product: { select: { id: true, name: true, image: true } } },

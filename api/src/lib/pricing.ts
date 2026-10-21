@@ -139,7 +139,7 @@ export async function buildQuote(input: QuoteInput): Promise<Quote> {
   const lines: QuoteLine[] = []
   for (const [variantId, quantity] of wanted) {
     const v = variants.find((x) => x.id === variantId)
-    if (!v || !v.active || v.product.status !== 'ACTIVE' || v.product.deletedAt) {
+    if (!v || !v.active || v.retiredAt || v.product.status !== 'ACTIVE' || v.product.deletedAt) {
       warnings.push('An item in your cart is no longer available and was removed')
       continue
     }

@@ -99,11 +99,13 @@ export async function adminCatalogRoutes(app: FastifyInstance) {
       const product = id
         ? await tx.product.update({ where: { id }, data: { ...data, purity: purity ?? null } })
         : await tx.product.create({ data: { ...data, purity: purity ?? null } })
-      const existing = await tx.variant.findMany({ where: { productId: product.id }, include: { _count: { select: { orderItems: true } } } })
+      const existing = await tx.variant.findMany({ where: { productId: product.id, retiredAt: null }, include: { _count: { select: { orderItems: true } } } })
       const keep = new Set(variants.filter((v) => v.id).map((v) => v.id))
       for (const old of existing.filter((e) => !keep.has(e.id))) {
         // Sizes with order history are retired instead of deleted so old orders stay intact.
-        if (old._count.orderItems > 0) await tx.variant.update({ where: { id: old.id }, data: { active: false, sku: `${old.sku}-RETIRED-${Date.now().toString(36)}` } })
+        // The SKU is freed so a new size can reuse it.
+        if (old._count.orderItems > 0)
+          await tx.variant.update({ where: { id: old.id }, data: { active: false, retiredAt: new Date(), sku: `${old.sku}-RETIRED-${Date.now().toString(36)}` } })
         else await tx.variant.delete({ where: { id: old.id } })
       }
       for (const [i, v] of variants.entries()) {

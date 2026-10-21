@@ -2,7 +2,8 @@ import type { Prisma } from '@prisma/client'
 
 export const productInclude = {
   category: true,
-  variants: { orderBy: [{ sortOrder: 'asc' }, { priceCents: 'asc' }] },
+  // Retired sizes only live on in order history.
+  variants: { where: { retiredAt: null }, orderBy: [{ sortOrder: 'asc' }, { priceCents: 'asc' }] },
   coas: { where: { deletedAt: null }, orderBy: { testedAt: 'desc' } },
 } satisfies Prisma.ProductInclude
 
