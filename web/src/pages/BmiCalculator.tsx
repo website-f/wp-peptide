@@ -13,7 +13,22 @@ import { useSeo } from '@/lib/seo'
 
 type Units = 'metric' | 'imperial'
 type Scale = 'asian' | 'who'
-type Suggested = Card & { bmiMin: number | null; bmiMax: number | null }
+type Suggested = Card & { matches: { variantId: string; label: string; bmiMin: number | null; bmiMax: number | null }[] }
+
+const rangeText = (min: number | null, max: number | null) => (min !== null && max !== null ? `${min}–${max}` : min !== null ? `${min}+` : `up to ${max}`)
+
+/** One chip per range: "All sizes · BMI 25+" or "20mg · BMI 25–32". */
+function groupMatches(p: Suggested) {
+  const groups = new Map<string, string[]>()
+  for (const m of p.matches) {
+    const r = rangeText(m.bmiMin, m.bmiMax)
+    groups.set(r, [...(groups.get(r) ?? []), m.label])
+  }
+  return [...groups].map(([range, labels]) => ({
+    range,
+    sizes: labels.length > 1 && labels.length === p.matches.length && groups.size === 1 ? 'All sizes' : labels.join(', '),
+  }))
+}
 
 // Malaysian Clinical Practice Guidelines (Asian cut-offs) and the WHO international cut-offs.
 const SCALES: Record<Scale, { label: string; bands: { max: number; key: Band }[] }> = {
@@ -332,10 +347,14 @@ export default function BmiCalculator() {
                 {suggestions.data.products.map((p, i) => (
                   <div key={p.id} className="min-w-0">
                     <ProductCard product={p} index={i} />
-                    <p className="mt-2 font-mono text-[11px] text-muted-foreground">
-                      BMI {p.bmiMin ?? 'up to'}
-                      {p.bmiMin !== null && p.bmiMax !== null ? `–${p.bmiMax}` : p.bmiMax !== null ? ` ${p.bmiMax}` : '+'}
-                    </p>
+                    <ul className="mt-2.5 flex flex-wrap gap-1.5" aria-label={`Sizes matched for ${p.name}`}>
+                      {groupMatches(p).map((g) => (
+                        <li key={g.range} className="inline-flex flex-wrap items-center gap-x-1.5 rounded-md border border-gold/30 bg-gold/10 px-2 py-0.5 text-[11px]">
+                          <span className="font-medium">{g.sizes}</span>
+                          <span className="font-mono text-muted-foreground">BMI {g.range}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 ))}
               </div>

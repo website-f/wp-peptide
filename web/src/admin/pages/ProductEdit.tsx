@@ -37,6 +37,7 @@ import {
   PageHeader,
   Panel,
   ProductStatusBadge,
+  Segmented,
   TextInput,
 } from '../components/kit'
 import { useAdminCategories } from '../lib/queries'
@@ -56,6 +57,8 @@ type VariantDraft = {
   active: boolean
   /** SKU follows the product slug and size label until the owner types their own. */
   skuAuto: boolean
+  bmiMin: string
+  bmiMax: string
 }
 
 type Draft = {
@@ -77,6 +80,8 @@ type Draft = {
   molecularWeight: string
   sequence: string
   storage: string
+  /** BMI calculator: one range for the product, or a range per size. */
+  bmiMode: 'product' | 'size'
   bmiMin: string
   bmiMax: string
   variants: VariantDraft[]
@@ -113,6 +118,8 @@ const emptyVariant = (slug: string): VariantDraft => ({
   stock: '0',
   active: true,
   skuAuto: true,
+  bmiMin: '',
+  bmiMax: '',
 })
 
 function emptyDraft(): Draft {
@@ -135,6 +142,7 @@ function emptyDraft(): Draft {
     molecularWeight: '',
     sequence: '',
     storage: '',
+    bmiMode: 'product',
     bmiMin: '',
     bmiMax: '',
     variants: [{ ...emptyVariant(''), key: 'new-initial' }],
@@ -161,6 +169,7 @@ function fromProduct(p: AdminProduct): Draft {
     molecularWeight: p.molecularWeight ?? '',
     sequence: p.sequence ?? '',
     storage: p.storage ?? '',
+    bmiMode: p.variants.some((v) => v.bmiMin != null || v.bmiMax != null) ? 'size' : 'product',
     bmiMin: p.bmiMin === null || p.bmiMin === undefined ? '' : String(p.bmiMin),
     bmiMax: p.bmiMax === null || p.bmiMax === undefined ? '' : String(p.bmiMax),
     variants: [...p.variants]
@@ -175,6 +184,8 @@ function fromProduct(p: AdminProduct): Draft {
         stock: String(v.stock),
         active: v.active,
         skuAuto: false,
+        bmiMin: v.bmiMin == null ? '' : String(v.bmiMin),
+        bmiMax: v.bmiMax == null ? '' : String(v.bmiMax),
       })),
   }
 }
@@ -197,12 +208,16 @@ function validate(d: Draft): Errors {
     if (!Number.isFinite(n) || n < 0 || n > 100) e.purity = 'Enter a number between 0 and 100'
   }
   if (!/^-?\d+$/.test(d.sortOrder.trim() || '0')) e.sortOrder = 'Use a whole number'
-  const bmi = (s: string) => (s.trim() === '' ? null : Number(s))
-  const lo = bmi(d.bmiMin)
-  const hi = bmi(d.bmiMax)
-  if (lo !== null && (!Number.isFinite(lo) || lo < 10 || lo > 80)) e.bmiMin = 'Enter a BMI between 10 and 80'
-  if (hi !== null && (!Number.isFinite(hi) || hi < 10 || hi > 80)) e.bmiMax = 'Enter a BMI between 10 and 80'
-  if (!e.bmiMin && !e.bmiMax && lo !== null && hi !== null && lo > hi) e.bmiMax = 'Must be higher than the "from" value'
+  const checkBmi = (min: string, max: string, prefix: string) => {
+    const bmi = (s: string) => (s.trim() === '' ? null : Number(s))
+    const lo = bmi(min)
+    const hi = bmi(max)
+    if (lo !== null && (!Number.isFinite(lo) || lo < 10 || lo > 80)) e[`${prefix}bmiMin`] = 'Enter a BMI between 10 and 80'
+    if (hi !== null && (!Number.isFinite(hi) || hi < 10 || hi > 80)) e[`${prefix}bmiMax`] = 'Enter a BMI between 10 and 80'
+    if (!e[`${prefix}bmiMin`] && !e[`${prefix}bmiMax`] && lo !== null && hi !== null && lo > hi) e[`${prefix}bmiMax`] = 'Must be higher than the "from" value'
+  }
+  if (d.bmiMode === 'product') checkBmi(d.bmiMin, d.bmiMax, '')
+  else for (const v of d.variants) checkBmi(v.bmiMin, v.bmiMax, `${v.key}.`)
   if (d.variants.length === 0) e.variants = 'Add at least one size'
   const seen = new Map<string, string>()
   for (const v of d.variants) {
@@ -219,6 +234,16 @@ function validate(d: Draft): Errors {
 }
 
 const orNull = (s: string) => (s.trim() === '' ? null : s.trim())
+const bmiValue = (s: string) => (s.trim() === '' ? null : Math.round(Number(s) * 10) / 10)
+
+/** "Every size is suggested for BMI 25 to 40." */
+function describeBmi(min: string, max: string, who: string) {
+  const lo = min.trim()
+  const hi = max.trim()
+  if (!lo && !hi) return `${who === 'Every size' ? 'Not shown' : 'Not suggested'} on the BMI calculator.`
+  if (lo && hi) return `${who} is suggested for BMI ${lo} to ${hi}.`
+  return lo ? `${who} is suggested for BMI ${lo} and above.` : `${who} is suggested for BMI ${hi} and below.`
+}
 
 function toPayload(d: Draft) {
   return {
@@ -239,8 +264,8 @@ function toPayload(d: Draft) {
     molecularWeight: orNull(d.molecularWeight),
     sequence: orNull(d.sequence),
     storage: orNull(d.storage),
-    bmiMin: d.bmiMin.trim() === '' ? null : Math.round(Number(d.bmiMin) * 10) / 10,
-    bmiMax: d.bmiMax.trim() === '' ? null : Math.round(Number(d.bmiMax) * 10) / 10,
+    bmiMin: d.bmiMode === 'product' ? bmiValue(d.bmiMin) : null,
+    bmiMax: d.bmiMode === 'product' ? bmiValue(d.bmiMax) : null,
     sortOrder: parseInt(d.sortOrder, 10) || 0,
     variants: d.variants.map((v, i) => ({
       id: v.id,
@@ -251,6 +276,8 @@ function toPayload(d: Draft) {
       stock: parseInt(v.stock, 10) || 0,
       active: v.active,
       sortOrder: i,
+      bmiMin: d.bmiMode === 'size' ? bmiValue(v.bmiMin) : null,
+      bmiMax: d.bmiMode === 'size' ? bmiValue(v.bmiMax) : null,
     })),
   }
 }
@@ -392,6 +419,16 @@ function Editor({ product }: { product?: AdminProduct }) {
     setDraft((d) => ({ ...d, variants: [...d.variants, emptyVariant(d.slug)] }))
     clearError('variants')
   }
+  // Switching to per-size starts every empty size from the product range, so nothing is lost.
+  const setBmiMode = (mode: Draft['bmiMode']) =>
+    setDraft((d) => ({
+      ...d,
+      bmiMode: mode,
+      variants:
+        mode === 'size'
+          ? d.variants.map((v) => (v.bmiMin.trim() || v.bmiMax.trim() ? v : { ...v, bmiMin: d.bmiMin, bmiMax: d.bmiMax }))
+          : d.variants,
+    }))
   const removeVariant = (key: string) => setDraft((d) => ({ ...d, variants: d.variants.filter((v) => v.key !== key) }))
 
   // ---- Save ----
@@ -699,46 +736,102 @@ function Editor({ product }: { product?: AdminProduct }) {
 
             <Panel
               title="BMI calculator"
-              description="Suggest this product on the BMI calculator page when a shopper's BMI falls in this range. Leave both empty to never suggest it; fill one side for an open range (e.g. from 30 and up)."
+              description="Suggest this product on the BMI calculator page when a shopper's BMI falls in a range. Both ends count. Fill one side only for an open range (e.g. from 30 and up); leave both empty to never suggest it."
             >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="From BMI" htmlFor="p-bmi-min" optional error={errors.bmiMin} hint="Lowest BMI, inclusive.">
-                  <NumberInput
-                    id="p-bmi-min"
-                    value={draft.bmiMin}
-                    onChange={(v) => {
-                      patch({ bmiMin: v })
-                      clearError('bmiMin')
-                      clearError('bmiMax')
-                    }}
-                    step="0.1"
-                    min={10}
-                    max={80}
-                    placeholder="25.0"
-                    aria-invalid={!!errors.bmiMin}
-                  />
-                </Field>
-                <Field label="To BMI" htmlFor="p-bmi-max" optional error={errors.bmiMax} hint="Highest BMI, inclusive.">
-                  <NumberInput
-                    id="p-bmi-max"
-                    value={draft.bmiMax}
-                    onChange={(v) => {
-                      patch({ bmiMax: v })
-                      clearError('bmiMax')
-                    }}
-                    step="0.1"
-                    min={10}
-                    max={80}
-                    placeholder="40.0"
-                    aria-invalid={!!errors.bmiMax}
-                  />
-                </Field>
-              </div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                {draft.bmiMin.trim() === '' && draft.bmiMax.trim() === ''
-                  ? 'Not shown on the BMI calculator.'
-                  : `Suggested for BMI ${draft.bmiMin.trim() || 'any'}${draft.bmiMax.trim() ? ` to ${draft.bmiMax.trim()}` : ' and above'}${draft.bmiMin.trim() === '' && draft.bmiMax.trim() ? ' (and below)' : ''}.`}
-              </p>
+              <Segmented
+                value={draft.bmiMode}
+                onChange={setBmiMode}
+                options={[
+                  { value: 'product', label: 'Same for all sizes' },
+                  { value: 'size', label: 'Different per size' },
+                ]}
+              />
+              {draft.bmiMode === 'product' ? (
+                <>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <Field label="From BMI" htmlFor="p-bmi-min" optional error={errors.bmiMin}>
+                      <NumberInput
+                        id="p-bmi-min"
+                        value={draft.bmiMin}
+                        onChange={(v) => {
+                          patch({ bmiMin: v })
+                          clearError('bmiMin', 'bmiMax')
+                        }}
+                        step="0.1"
+                        min={10}
+                        max={80}
+                        placeholder="25.0"
+                        aria-invalid={!!errors.bmiMin}
+                      />
+                    </Field>
+                    <Field label="To BMI" htmlFor="p-bmi-max" optional error={errors.bmiMax}>
+                      <NumberInput
+                        id="p-bmi-max"
+                        value={draft.bmiMax}
+                        onChange={(v) => {
+                          patch({ bmiMax: v })
+                          clearError('bmiMax')
+                        }}
+                        step="0.1"
+                        min={10}
+                        max={80}
+                        placeholder="40.0"
+                        aria-invalid={!!errors.bmiMax}
+                      />
+                    </Field>
+                  </div>
+                  <p className="mt-3 text-xs text-muted-foreground">{describeBmi(draft.bmiMin, draft.bmiMax, 'Every size')}</p>
+                </>
+              ) : (
+                <div className="mt-4 grid gap-3">
+                  {draft.variants.map((v, i) => {
+                    const name = v.label.trim() || `Size ${i + 1}`
+                    return (
+                      <div key={v.key} className="rounded-lg border bg-surface/50 p-3">
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                          <p className="text-sm font-medium">
+                            {name}
+                            {!v.active && <span className="ml-2 text-xs font-normal text-muted-foreground">(off sale)</span>}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{describeBmi(v.bmiMin, v.bmiMax, 'This size')}</p>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-3">
+                          <Field label="From BMI" htmlFor={`${v.key}-bmi-min`} optional error={errors[`${v.key}.bmiMin`]}>
+                            <NumberInput
+                              id={`${v.key}-bmi-min`}
+                              value={v.bmiMin}
+                              onChange={(val) => {
+                                patchVariant(v.key, { bmiMin: val })
+                                clearError(`${v.key}.bmiMax`)
+                              }}
+                              step="0.1"
+                              min={10}
+                              max={80}
+                              placeholder="—"
+                              aria-label={`${name}: from BMI`}
+                              aria-invalid={!!errors[`${v.key}.bmiMin`]}
+                            />
+                          </Field>
+                          <Field label="To BMI" htmlFor={`${v.key}-bmi-max`} optional error={errors[`${v.key}.bmiMax`]}>
+                            <NumberInput
+                              id={`${v.key}-bmi-max`}
+                              value={v.bmiMax}
+                              onChange={(val) => patchVariant(v.key, { bmiMax: val })}
+                              step="0.1"
+                              min={10}
+                              max={80}
+                              placeholder="—"
+                              aria-label={`${name}: to BMI`}
+                              aria-invalid={!!errors[`${v.key}.bmiMax`]}
+                            />
+                          </Field>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  <p className="text-xs text-muted-foreground">Sizes left empty are not suggested. Only the sizes that match are offered on the calculator page.</p>
+                </div>
+              )}
             </Panel>
           </div>
 

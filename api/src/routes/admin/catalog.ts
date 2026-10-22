@@ -18,6 +18,8 @@ const variantSchema = z.object({
   stock: z.number().int().min(0).default(0),
   active: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
+  bmiMin: z.number().min(10).max(80).nullable().optional(),
+  bmiMax: z.number().min(10).max(80).nullable().optional(),
 })
 
 const productSchema = z.object({
@@ -97,6 +99,9 @@ export async function adminCatalogRoutes(app: FastifyInstance) {
     const skus = body.variants.map((v) => v.sku.toUpperCase())
     if (new Set(skus).size !== skus.length) throw badRequest('Each size needs a unique SKU')
     if (body.bmiMin != null && body.bmiMax != null && body.bmiMin > body.bmiMax) throw badRequest('The BMI "from" value must be lower than the "to" value')
+    for (const v of body.variants) {
+      if (v.bmiMin != null && v.bmiMax != null && v.bmiMin > v.bmiMax) throw badRequest(`${v.label}: the BMI "from" value must be lower than the "to" value`)
+    }
     const { variants, purity, bmiMin, bmiMax, ...rest } = body
     const data = { ...rest, bmiMin: bmiMin ?? null, bmiMax: bmiMax ?? null }
     return db.$transaction(async (tx) => {
@@ -113,7 +118,7 @@ export async function adminCatalogRoutes(app: FastifyInstance) {
         else await tx.variant.delete({ where: { id: old.id } })
       }
       for (const [i, v] of variants.entries()) {
-        const data = { ...v, sku: v.sku.toUpperCase(), sortOrder: v.sortOrder || i }
+        const data = { ...v, sku: v.sku.toUpperCase(), sortOrder: v.sortOrder || i, bmiMin: v.bmiMin ?? null, bmiMax: v.bmiMax ?? null }
         delete (data as { id?: string }).id
         if (v.id && existing.some((e) => e.id === v.id)) await tx.variant.update({ where: { id: v.id }, data })
         else await tx.variant.create({ data: { ...data, productId: product.id } })

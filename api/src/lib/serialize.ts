@@ -94,6 +94,8 @@ export function productAdmin(p: ProductFull & { _count?: { orderItems: number } 
       stock: v.stock,
       active: v.active,
       sortOrder: v.sortOrder,
+      bmiMin: v.bmiMin !== null ? Number(v.bmiMin) : null,
+      bmiMax: v.bmiMax !== null ? Number(v.bmiMax) : null,
     })),
     totalStock: p.variants.reduce((a, v) => a + v.stock, 0),
   }

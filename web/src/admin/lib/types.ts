@@ -171,6 +171,8 @@ export interface AdminVariant {
   stock: number
   active: boolean
   sortOrder: number
+  bmiMin: number | null
+  bmiMax: number | null
 }
 
 export interface CoaDto {

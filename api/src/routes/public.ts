@@ -47,26 +47,42 @@ export async function publicRoutes(app: FastifyInstance) {
     return products
   })
 
-  // BMI calculator: active products whose admin-set BMI range contains this BMI. A product with only one
-  // bound is open-ended on the other side; products with no range are never suggested.
+  // BMI calculator. Each size uses its own range when it has one, otherwise the product's range. A range
+  // with one side empty is open on that side; a size with no range at all is never suggested. Only the
+  // matching sizes are returned, so the card offers exactly those.
   app.get('/api/bmi/suggestions', async (req) => {
     const { bmi } = parse(z.object({ bmi: z.coerce.number().min(10).max(80) }), req.query)
     const value = Math.round(bmi * 10) / 10
+    const hasRange = { OR: [{ bmiMin: { not: null } }, { bmiMax: { not: null } }] }
     const rows = await db.product.findMany({
-      where: {
-        status: 'ACTIVE',
-        deletedAt: null,
-        OR: [{ bmiMin: { not: null } }, { bmiMax: { not: null } }],
-        AND: [{ OR: [{ bmiMin: null }, { bmiMin: { lte: value } }] }, { OR: [{ bmiMax: null }, { bmiMax: { gte: value } }] }],
-      },
+      where: { status: 'ACTIVE', deletedAt: null, OR: [...hasRange.OR, { variants: { some: { retiredAt: null, active: true, ...hasRange } } }] },
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
       include: productInclude,
     })
     const low = (await getSettings()).inventory.lowStockThreshold
-    return {
-      bmi: value,
-      products: rows.map((p) => ({ ...productCard(p, low), bmiMin: p.bmiMin !== null ? Number(p.bmiMin) : null, bmiMax: p.bmiMax !== null ? Number(p.bmiMax) : null })),
+    const n = (d: unknown) => (d === null || d === undefined ? null : Number(d))
+    const products = []
+    for (const p of rows) {
+      const matches = p.variants
+        .filter((v) => v.active)
+        .map((v) => {
+          const own = v.bmiMin !== null || v.bmiMax !== null
+          return { variantId: v.id, label: v.label, bmiMin: own ? n(v.bmiMin) : n(p.bmiMin), bmiMax: own ? n(v.bmiMax) : n(p.bmiMax), perSize: own }
+        })
+        .filter((m) => (m.bmiMin !== null || m.bmiMax !== null) && (m.bmiMin === null || m.bmiMin <= value) && (m.bmiMax === null || m.bmiMax >= value))
+      if (!matches.length) continue
+      const card = productCard(p, low)
+      const ids = new Set(matches.map((m) => m.variantId))
+      const variants = card.variants.filter((v) => ids.has(v.id))
+      products.push({
+        ...card,
+        variants,
+        fromPriceCents: variants.length ? Math.min(...variants.map((v) => v.priceCents)) : card.fromPriceCents,
+        inStock: variants.some((v) => v.inStock),
+        matches,
+      })
     }
+    return { bmi: value, products }
   })
 
   app.get('/api/products/:slug', async (req) => {

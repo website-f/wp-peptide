@@ -209,6 +209,9 @@ model Variant {
   sortOrder  Int         @default(0)
   /// Set when an admin removes a size that has orders: kept for order history, hidden everywhere else.
   retiredAt  DateTime?
+  /// BMI calculator range for this size only. Empty = this size uses the product's range.
+  bmiMin     Decimal?    @db.Decimal(4, 1)
+  bmiMax     Decimal?    @db.Decimal(4, 1)
   orderItems OrderItem[]
 }
 
